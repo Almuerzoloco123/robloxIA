@@ -51,16 +51,16 @@ RunService.RenderStepped:Connect(function(dt: number)
 	local pitch = math.asin(math.clamp(localLook.Y, -1, 1))
 	local yaw = math.atan2(-localLook.X, -localLook.Z)
 
-	-- Apply procedural rotation strictly to Motor6D.Transform in local coordinates
+	-- Apply procedural rotation strictly to Motor6D.Transform in local coordinates without accumulation
 	if waistJoint then
 		local clampedPitch = math.clamp(pitch * 0.5, -math.rad(30), math.rad(30))
 		local clampedYaw = math.clamp(yaw * 0.5, -math.rad(45), math.rad(45))
-		waistJoint.Transform = waistJoint.Transform * CFrame.Angles(clampedPitch, clampedYaw, 0)
+		waistJoint.Transform = CFrame.Angles(clampedPitch, clampedYaw, 0)
 	end
 
 	if neckJoint then
 		local clampedPitch = math.clamp(pitch * 0.5, -math.rad(45), math.rad(45))
 		local clampedYaw = math.clamp(yaw * 0.5, -math.rad(60), math.rad(60))
-		neckJoint.Transform = neckJoint.Transform * CFrame.Angles(clampedPitch, clampedYaw, 0)
+		neckJoint.Transform = CFrame.Angles(clampedPitch, clampedYaw, 0)
 	end
 end)

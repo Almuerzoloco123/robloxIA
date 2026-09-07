@@ -102,16 +102,37 @@ function DataPersistenceService.loadData(player: Player): Types.PlayerData?
 	return loadedData
 end
 
+local activeSavingCount = 0
+local savingInProgress: { [number]: boolean } = {}
+
 function DataPersistenceService.saveData(player: Player, isReleasingSession: boolean)
-	local data = activeSessions[player.UserId]
+	local userId = player.UserId
+	local data = activeSessions[userId]
 	if not data then
 		return
 	end
 
-	local key = "Player_" .. tostring(player.UserId)
+	-- Prevent duplicate concurrent saves for the same player key
+	if savingInProgress[userId] then
+		while savingInProgress[userId] do
+			task.wait(0.05)
+		end
+		return
+	end
 
-	retryAsync(function()
+	savingInProgress[userId] = true
+	activeSavingCount += 1
+
+	local key = "Player_" .. tostring(userId)
+
+	local success, err = retryAsync(function()
 		return PlayerDataStore:UpdateAsync(key, function(current: any)
+			-- Do not overwrite if another server took over the session
+			if current and current.sessionLockJobId and current.sessionLockJobId ~= CURRENT_JOB_ID then
+				warn(string.format("[DATASTORE] Cannot save %s: lock held by another server (%s)", key, tostring(current.sessionLockJobId)))
+				return nil
+			end
+
 			local target = current or cloneTable(DEFAULT_DATA)
 			-- Merge session changes into persistent state
 			target.coins = data.coins
@@ -133,9 +154,16 @@ function DataPersistenceService.saveData(player: Player, isReleasingSession: boo
 		end)
 	end)
 
-	if isReleasingSession then
-		activeSessions[player.UserId] = nil
+	if not success then
+		warn(string.format("[DATASTORE] Failed to save data for %s: %s", player.Name, tostring(err)))
 	end
+
+	if isReleasingSession then
+		activeSessions[userId] = nil
+	end
+
+	savingInProgress[userId] = nil
+	activeSavingCount -= 1
 end
 
 function DataPersistenceService.getData(player: Player): Types.PlayerData?
@@ -153,23 +181,18 @@ end)
 
 game:BindToClose(function()
 	local players = Players:GetPlayers()
-	if #players == 0 then
-		return
-	end
-
-	local completed = 0
 	for _, player in players do
 		task.spawn(function()
 			pcall(DataPersistenceService.saveData, player, true)
-			completed += 1
 		end)
 	end
 
-	-- Wait until saves complete or max 6 seconds to respect engine limits
+	-- Wait until all active saves complete or max 6 seconds to respect engine shutdown limit
 	local start = os.clock()
-	while completed < #players and (os.clock() - start) < 6 do
+	while activeSavingCount > 0 and (os.clock() - start) < 6 do
 		task.wait(0.1)
 	end
+	print("[DATASTORE] BindToClose flushed all active player sessions.")
 end)
 
 return DataPersistenceService

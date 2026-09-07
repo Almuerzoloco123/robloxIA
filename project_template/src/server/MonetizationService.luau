@@ -34,34 +34,15 @@ local function processReceipt(receiptInfo: { [string]: any }): Enum.ProductPurch
 	local productId = receiptInfo.ProductId
 
 	local recordKey = "Receipt_" .. tostring(purchaseId)
-	local isNewPurchase = false
 
-	-- 1. Atomic Deduplication check via UpdateAsync BEFORE granting rewards
-	local updateSuccess, updateResult = pcall(function()
-		return PurchaseHistoryStore:UpdateAsync(recordKey, function(saved: any)
-			if saved and saved.granted == true then
-				isNewPurchase = false
-				return nil -- Already fulfilled, abort write
-			end
-
-			isNewPurchase = true
-			return {
-				purchaseId = purchaseId,
-				playerId = playerId,
-				productId = productId,
-				timestamp = os.time(),
-				granted = true,
-			}
-		end)
+	-- 1. Check if purchase was already granted and recorded previously
+	local checkSuccess, isAlreadyGranted = pcall(function()
+		local record = PurchaseHistoryStore:GetAsync(recordKey)
+		return record ~= nil and record.granted == true
 	end)
 
-	if not updateSuccess then
-		warn(string.format("[RECEIPT] DataStore update failed for purchase %s. Requesting retry.", purchaseId))
-		return Enum.ProductPurchaseDecision.NotProcessedYet
-	end
-
-	-- If it was already processed previously, confirm purchase immediately
-	if not isNewPurchase then
+	if checkSuccess and isAlreadyGranted then
+		print(string.format("[RECEIPT] Purchase %s was already granted. Confirming.", tostring(purchaseId)))
 		return Enum.ProductPurchaseDecision.PurchaseGranted
 	end
 
@@ -75,17 +56,35 @@ local function processReceipt(receiptInfo: { [string]: any }): Enum.ProductPurch
 	-- 3. Execute product reward handler
 	local handler = productHandlers[productId]
 	if not handler then
-		warn(string.format("[RECEIPT ERROR] Unknown ProductId: %d", productId))
+		warn(string.format("[RECEIPT ERROR] Unknown ProductId: %s", tostring(productId)))
 		return Enum.ProductPurchaseDecision.NotProcessedYet
 	end
 
-	local grantSuccess = handler(player)
-	if not grantSuccess then
-		warn(string.format("[RECEIPT ERROR] Handler failed to grant product %d to %s", productId, player.Name))
+	local grantSuccess, grantOk = pcall(handler, player)
+	if not grantSuccess or not grantOk then
+		warn(string.format("[RECEIPT ERROR] Handler failed to grant product %s to %s", tostring(productId), player.Name))
 		return Enum.ProductPurchaseDecision.NotProcessedYet
 	end
 
-	print(string.format("[RECEIPT SUCCESS] Successfully processed purchase %s for player %s", purchaseId, player.Name))
+	-- 4. Atomic Record in PurchaseHistoryStore AFTER reward execution
+	local updateSuccess, _ = pcall(function()
+		return PurchaseHistoryStore:UpdateAsync(recordKey, function(saved: any)
+			return {
+				purchaseId = purchaseId,
+				playerId = playerId,
+				productId = productId,
+				timestamp = os.time(),
+				granted = true,
+			}
+		end)
+	end)
+
+	if not updateSuccess then
+		warn(string.format("[RECEIPT ERROR] DataStore record write failed for purchase %s. Requesting retry.", tostring(purchaseId)))
+		return Enum.ProductPurchaseDecision.NotProcessedYet
+	end
+
+	print(string.format("[RECEIPT SUCCESS] Successfully processed purchase %s for player %s", tostring(purchaseId), player.Name))
 	return Enum.ProductPurchaseDecision.PurchaseGranted
 end
 

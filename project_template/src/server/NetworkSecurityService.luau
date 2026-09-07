@@ -78,13 +78,22 @@ function NetworkSecurityService.checkRateLimit(player: Player, remoteName: strin
 	return false
 end
 
--- Spatial Distance Validation (Euclidean magnitude check with runtime type safety)
+-- Spatial Distance Validation (Euclidean magnitude check with runtime type safety & NaN rejection)
 function NetworkSecurityService.validateProximity(player: Player, targetPosition: Vector3, maxDistance: number?): boolean
 	if typeof(targetPosition) ~= "Vector3" then
 		return false
 	end
 
+	-- Reject NaN coordinate exploits
+	if targetPosition.X ~= targetPosition.X or targetPosition.Y ~= targetPosition.Y or targetPosition.Z ~= targetPosition.Z then
+		return false
+	end
+
 	local maxDist = maxDistance or 15
+	if typeof(maxDist) ~= "number" or maxDist ~= maxDist or maxDist < 0 then
+		return false
+	end
+
 	local char = player.Character
 	if not char then
 		return false

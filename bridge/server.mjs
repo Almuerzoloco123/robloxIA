@@ -209,8 +209,15 @@ const server = http.createServer(async (req, res) => {
       pyProcess.stdout.on('data', d => { output += d.toString(); });
       pyProcess.stderr.on('data', d => { error += d.toString(); });
 
+      let responded = false;
+      const respond = (status, data) => {
+        if (responded) return;
+        responded = true;
+        sendJson(res, status, data);
+      };
+
       pyProcess.on('error', err => {
-        sendJson(res, 500, {
+        respond(500, {
           success: false,
           error: 'Failed to launch screen capture worker process',
           details: err.message
@@ -219,14 +226,14 @@ const server = http.createServer(async (req, res) => {
 
       pyProcess.on('close', code => {
         if (code === 0) {
-          sendJson(res, 200, {
+          respond(200, {
             success: true,
             message: 'Capture complete',
             file: path.resolve(__dirname, '..', 'viewport_latest.png'),
             log: output.trim()
           });
         } else {
-          sendJson(res, 500, {
+          respond(500, {
             success: false,
             error: 'Screen capture worker failed',
             details: error || output

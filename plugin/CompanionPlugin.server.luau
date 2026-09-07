@@ -256,25 +256,33 @@ local function handleCsgOperation(args: { [string]: any }): { [string]: any }
 	end
 
 	local GeometryService = game:GetService("GeometryService")
-	local resultPart: BasePart? = nil
+	local resultParts: { BasePart } = {}
 
 	if operation == "Union" then
-		resultPart = (GeometryService :: any):UnionAsync({ partA, partB })
+		resultParts = (GeometryService :: any):UnionAsync({ partA, partB })
 	elseif operation == "Subtract" then
-		resultPart = (GeometryService :: any):SubtractAsync(partA, { partB })
+		resultParts = (GeometryService :: any):SubtractAsync(partA, { partB })
 	elseif operation == "Intersect" then
-		resultPart = (GeometryService :: any):IntersectAsync({ partA, partB })
+		resultParts = (GeometryService :: any):IntersectAsync({ partA, partB })
 	else
 		error("Unsupported CSG operation: " .. tostring(operation))
 	end
 
-	if resultPart then
-		resultPart.Name = args.resultName or (partAName .. "_" .. operation)
-		resultPart.Parent = workspace
-		Selection:Set({ resultPart })
+	local primaryResultName = "CSG_Failed"
+	if resultParts and typeof(resultParts) == "table" and #resultParts > 0 then
+		for index, part in ipairs(resultParts) do
+			local name = args.resultName or (partAName .. "_" .. operation)
+			if #resultParts > 1 then
+				name = name .. "_" .. tostring(index)
+			end
+			part.Name = name
+			part.Parent = workspace
+		end
+		primaryResultName = resultParts[1].Name
+		Selection:Set(resultParts)
 	end
 
-	return { resultName = resultPart and resultPart.Name or "CSG_Failed", operation = operation }
+	return { resultName = primaryResultName, count = #resultParts, operation = operation }
 end
 
 -- Handler: Terrain Voxel Filling

@@ -48,7 +48,16 @@
   - Doble juicio ciego (Judgment Day: Red SHIP / Blue SHIP).
 
 ## 4. 🧠 Decision Log
-- `[2026-09-07]` **Resolución Adversarial de Judgment Day**: Corrección de 8 fallas críticas detectadas por los jueces Red y Blue:
+- `[2026-09-07]` **Resolución Final del 360° QA Audit & Judgment Day**:
+  1. `Janitor.luau`: Eliminado el sombreado de variable `task` en el bucle `for item in pairs(tasks)` para que `task.cancel()` cancele hilos reales sin silenciar errores en `pcall`.
+  2. `MonetizationService.luau`: Verificación del jugador conectado e invocación exitosa del handler de producto antes de registrar la compra cumplida (`granted = true`) en DataStore, evitando la pérdida irreversible de compras en retintento.
+  3. `CompanionPlugin.server.luau`: Desenpaquetado e iteración correcta sobre el array `{BasePart}` devuelto por `GeometryService:UnionAsync`, `SubtractAsync` e `IntersectAsync` para nombrarlas y emparentarlas correctamente en `workspace`.
+  4. `bridge/server.mjs`: Añadido guard `responded` en `/api/capture` para erradicar llamadas duplicadas a `sendJson()` y el error fatal de proceso `ERR_HTTP_HEADERS_SENT`.
+  5. `DataPersistenceService.luau`: Protección de lease en `saveData` (`sessionLockJobId == CURRENT_JOB_ID`) y cola atómica de guardados en vuelo (`activeSavingCount`) para evitar salidas prematuras en `game:BindToClose`.
+  6. `CharacterController.client.luau`: Asignación directa de `waistJoint.Transform` y `neckJoint.Transform` con ángulos acotados para prevenir la acumulación multiplicativa y el giro centrífugo continuo del personaje.
+  7. `bridge/open_cloud.mjs`: Lanzamiento de error explícito ante timeout en polling en lugar de inyectar un UUID de operación en formato `rbxassetid://`.
+  8. `NetworkSecurityService.luau`: Detección y rechazo de valores `NaN` en coordenadas de `targetPosition` en la validación de proximidad espacial.
+- `[2026-09-07]` **Resolución Adversarial de Judgment Day Inicial**: Corrección de 8 fallas críticas detectadas por los jueces Red y Blue:
   1. Jerarquía de `require` en `init.server.luau` para Rojo (`script:WaitForChild(...)`).
   2. Serialización de payloads en `postReport` (eliminado `JSONDecode` redundante).
   3. Soporte de actuadores `CSG_OPERATION` (`GeometryService`) y `SET_TERRAIN_VOXELS` en el Companion Plugin.

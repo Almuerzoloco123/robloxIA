@@ -104,7 +104,14 @@ export async function uploadAssetOpenCloud({
     }
   }
 
-  assetId = assetId || result.response?.assetId || result.path?.split('/').pop();
+  if (!assetId && result.response?.assetId) {
+    assetId = result.response.assetId;
+  }
+
+  if (!assetId) {
+    throw new Error(`Open Cloud upload operation timed out or failed to return assetId: ${result.path || 'unknown operation'}`);
+  }
+
   return {
     assetId,
     operationId: result.path,

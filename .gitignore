@@ -20,3 +20,6 @@ _Index/
 *.rbxl
 *.rbxlx
 *.rbxm
+__pycache__/
+*.pyc
+
