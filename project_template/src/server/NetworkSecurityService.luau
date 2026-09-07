@@ -84,13 +84,16 @@ function NetworkSecurityService.validateProximity(player: Player, targetPosition
 		return false
 	end
 
-	-- Reject NaN coordinate exploits
+	-- Reject NaN and Infinite coordinate exploits
 	if targetPosition.X ~= targetPosition.X or targetPosition.Y ~= targetPosition.Y or targetPosition.Z ~= targetPosition.Z then
+		return false
+	end
+	if math.abs(targetPosition.X) == math.huge or math.abs(targetPosition.Y) == math.huge or math.abs(targetPosition.Z) == math.huge then
 		return false
 	end
 
 	local maxDist = maxDistance or 15
-	if typeof(maxDist) ~= "number" or maxDist ~= maxDist or maxDist < 0 then
+	if typeof(maxDist) ~= "number" or maxDist ~= maxDist or maxDist < 0 or maxDist == math.huge then
 		return false
 	end
 

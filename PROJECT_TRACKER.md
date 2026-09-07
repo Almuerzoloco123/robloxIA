@@ -48,6 +48,17 @@
   - Doble juicio ciego (Judgment Day: Red SHIP / Blue SHIP).
 
 ## 4. 🧠 Decision Log
+- `[2026-09-07]` **Resolución de Judgment Day (Ronda 2 - Double Blind Audit)**:
+  1. `MonetizationService.luau`: Enlace a `DataPersistenceService` con mutación real de monedas y tracker en sesión (`inSessionFulfilledReceipts`) para prevenir explotación de duplicación en reintentos de DataStore.
+  2. `CompanionPlugin.server.luau`: Destrucción de partes originales (`partA` y `partB`) tras operaciones CSG exitosas para erradicar Z-fighting y colisiones superpuestas; adición de parámetro `nocache = true` en `HttpService:GetAsync` y backoff exponencial para respetar la cuota de 500 req/min del motor.
+  3. `bridge/server.mjs`: Inyección de cabeceras HTTP `Cache-Control: no-cache, no-store, must-revalidate` y `Pragma: no-cache` en `sendJson` para impedir respuestas obsoletas cacheadas por Studio.
+  4. `CharacterController.client.luau`: Preservación de la posición animada (`waistJoint.Transform.Position`), inversión de signo en pitch para orientación canónica, soporte multiplataforma (Touch/Gamepad) y limpieza de articulaciones en `onCharacterAdded` ante respawn.
+  5. `DataPersistenceService.luau`: Corrección de liberación de sesión concurrente (`isReleasingSession`) tras guardados en vuelo, bucle rotador de autoguardado periódico cada 120s (evita caducidad de lease tras 15 min) y carga reactiva de jugadores presentes al iniciar.
+  6. `Janitor.luau`: Salvaguarda `item ~= coroutine.running()` para impedir que un hilo se auto-cancele a mitad de iteración abortando la limpieza de los demás ítems.
+  7. `bridge/screen_capture.py`: Sintaxis de constructor `Rectangle($x, $y, $w, $h)` para prevenir errores con coordenadas negativas en configuraciones multimonitor y detección de ventanas minimizadas (`x < -10000`).
+  8. `bridge/open_cloud.mjs`: Inspección explícita de `opData.error` durante el polling de operaciones para abortar inmediatamente con el mensaje exacto de rechazo o moderación.
+  9. `NetworkSecurityService.luau`: Adición de comprobaciones `math.huge` para rechazar coordenadas infinitas en validación espacial.
+  10. `default.project.json` & `agent/orchestrator_cli.mjs`: Mapeo de `Packages` de Wally hacia `ReplicatedStorage` y exposición CLI de comandos `csg-op` y `set-terrain`.
 - `[2026-09-07]` **Resolución Final del 360° QA Audit & Judgment Day**:
   1. `Janitor.luau`: Eliminado el sombreado de variable `task` en el bucle `for item in pairs(tasks)` para que `task.cancel()` cancele hilos reales sin silenciar errores en `pcall`.
   2. `MonetizationService.luau`: Verificación del jugador conectado e invocación exitosa del handler de producto antes de registrar la compra cumplida (`granted = true`) en DataStore, evitando la pérdida irreversible de compras en retintento.

@@ -96,9 +96,14 @@ export async function uploadAssetOpenCloud({
       const opRes = await fetch(opUrl, { headers: { 'x-api-key': apiKey } });
       if (opRes.ok) {
         const opData = await opRes.json();
-        if (opData.done && opData.response?.assetId) {
-          assetId = opData.response.assetId;
-          break;
+        if (opData.done) {
+          if (opData.error) {
+            throw new Error(`Open Cloud upload rejected (${opData.error.code}): ${opData.error.message || JSON.stringify(opData.error)}`);
+          }
+          if (opData.response?.assetId) {
+            assetId = opData.response.assetId;
+            break;
+          }
         }
       }
     }

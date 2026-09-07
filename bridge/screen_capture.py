@@ -42,6 +42,11 @@ def find_roblox_studio_window():
     user32.EnumWindows(WNDENUMPROC(enum_windows_callback), 0)
     return target_hwnd
 
+try:
+    user32.SetProcessDPIAware()
+except Exception:
+    pass
+
 def get_window_bounds(hwnd):
     rect = RECT()
     if user32.GetWindowRect(hwnd, ctypes.byref(rect)):
@@ -49,6 +54,9 @@ def get_window_bounds(hwnd):
         y = rect.top
         w = max(100, rect.right - rect.left)
         h = max(100, rect.bottom - rect.top)
+        # Check if window is minimized (Windows coordinates -32000)
+        if x < -10000 or y < -10000:
+            return None
         return (x, y, w, h)
     return None
 
@@ -58,7 +66,11 @@ def capture_rect(x, y, w, h):
     Add-Type -AssemblyName System.Windows.Forms
     Add-Type -AssemblyName System.Drawing
 
-    $bounds = New-Object System.Drawing.Rectangle {x}, {y}, {w}, {h}
+    $x = [int]{x}
+    $y = [int]{y}
+    $w = [int]{w}
+    $h = [int]{h}
+    $bounds = New-Object System.Drawing.Rectangle($x, $y, $w, $h)
     $bitmap = New-Object System.Drawing.Bitmap $bounds.Width, $bounds.Height
     $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
     $graphics.CopyFromScreen($bounds.Location, [System.Drawing.Point]::Empty, $bounds.Size)

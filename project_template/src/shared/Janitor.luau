@@ -46,7 +46,7 @@ function Janitor:Cleanup()
 				(item :: Instance):Destroy()
 			elseif typeof(item) == "thread" then
 				local status = coroutine.status(item :: thread)
-				if status ~= "dead" then
+				if status ~= "dead" and item ~= coroutine.running() then
 					task.cancel(item :: thread)
 				end
 			elseif typeof(item) == "function" then

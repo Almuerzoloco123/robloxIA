@@ -112,12 +112,15 @@ function DataPersistenceService.saveData(player: Player, isReleasingSession: boo
 		return
 	end
 
-	-- Prevent duplicate concurrent saves for the same player key
+	-- If a save is already in progress, wait for it to complete
 	if savingInProgress[userId] then
 		while savingInProgress[userId] do
 			task.wait(0.05)
 		end
-		return
+		-- If this was an ordinary autosave, the just-concluded save has already persisted data
+		if not isReleasingSession then
+			return
+		end
 	end
 
 	savingInProgress[userId] = true
@@ -158,7 +161,7 @@ function DataPersistenceService.saveData(player: Player, isReleasingSession: boo
 		warn(string.format("[DATASTORE] Failed to save data for %s: %s", player.Name, tostring(err)))
 	end
 
-	if isReleasingSession then
+	if isReleasingSession and success then
 		activeSessions[userId] = nil
 	end
 
@@ -177,6 +180,26 @@ end)
 
 Players.PlayerRemoving:Connect(function(player)
 	DataPersistenceService.saveData(player, true)
+end)
+
+-- Catch-up for players already in session (e.g. Studio Play Solo)
+for _, player in Players:GetPlayers() do
+	task.spawn(DataPersistenceService.loadData, player)
+end
+
+-- Periodic Staggered Auto-Save Loop (Refreshes session lock timestamp every 120s)
+task.spawn(function()
+	while true do
+		task.wait(120)
+		for _, player in Players:GetPlayers() do
+			if player.Parent and activeSessions[player.UserId] then
+				task.spawn(function()
+					DataPersistenceService.saveData(player, false)
+				end)
+				task.wait(1)
+			end
+		end
+	end
 end)
 
 game:BindToClose(function()

@@ -10,6 +10,9 @@
     "ReplicatedStorage": {
       "RAASE_Shared": {
         "$path": "src/shared"
+      },
+      "Packages": {
+        "$path": "Packages"
       }
     },
     "StarterPlayer": {

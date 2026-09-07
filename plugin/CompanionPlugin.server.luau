@@ -280,6 +280,10 @@ local function handleCsgOperation(args: { [string]: any }): { [string]: any }
 		end
 		primaryResultName = resultParts[1].Name
 		Selection:Set(resultParts)
+
+		-- Clean up original source parts to eliminate overlapping duplicate geometry and Z-fighting
+		partA:Destroy()
+		partB:Destroy()
 	end
 
 	return { resultName = primaryResultName, count = #resultParts, operation = operation }
@@ -365,7 +369,7 @@ task.spawn(function()
 
 		if isEnabled and not isBusy then
 			local pollSuccess, response = pcall(function()
-				return HttpService:GetAsync(POLL_URL)
+				return HttpService:GetAsync(POLL_URL, true) -- nocache = true bypasses Roblox engine internal HTTP cache
 			end)
 
 			if pollSuccess and response and response ~= "" and response ~= "{}" then
@@ -377,6 +381,10 @@ task.spawn(function()
 					isBusy = true
 					pcall(executeCommand, data)
 					isBusy = false
+				end
+			else
+				if not pollSuccess then
+					task.wait(2.5) -- Back off on connection error to preserve 500 req/min engine budget
 				end
 			end
 		end

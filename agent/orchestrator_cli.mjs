@@ -137,6 +137,23 @@ async function main() {
         });
         break;
 
+      case 'csg-op':
+        await sendCommand('CSG_OPERATION', {
+          operation: args[1] || 'Union',
+          partA: args[2] || 'PartA',
+          partB: args[3] || 'PartB',
+          resultName: args[4]
+        });
+        break;
+
+      case 'set-terrain':
+        await sendCommand('SET_TERRAIN_VOXELS', {
+          shape: args[1] || 'Block',
+          position: [parseFloat(args[2] || '0'), parseFloat(args[3] || '0'), parseFloat(args[4] || '0')],
+          size: [parseFloat(args[5] || '16'), parseFloat(args[6] || '8'), parseFloat(args[7] || '16')]
+        });
+        break;
+
       case 'capture':
         await triggerCapture();
         break;
@@ -158,6 +175,8 @@ Commands:
   set-lighting <preset>                  Apply atmospheric lighting preset
   focus-camera <x> <y> <z> [dist]        Reposition Studio camera
   spawn-part [name]                      Spawn a standalone block
+  csg-op <Union|Subtract|Intersect> <a> <b> [res] Perform CSG operation
+  set-terrain <Block|Ball> <x> <y> <z> [sx sy sz] Fill terrain voxels
   capture                                Trigger host-side viewport capture
   recipe <three-islands>                 Execute procedural multi-island scene
         `);
