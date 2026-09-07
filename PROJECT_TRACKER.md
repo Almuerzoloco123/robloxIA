@@ -48,6 +48,15 @@
   - Doble juicio ciego (Judgment Day: Red SHIP / Blue SHIP).
 
 ## 4. 🧠 Decision Log
+- `[2026-09-07]` **Resolución Adversarial de Judgment Day**: Corrección de 8 fallas críticas detectadas por los jueces Red y Blue:
+  1. Jerarquía de `require` en `init.server.luau` para Rojo (`script:WaitForChild(...)`).
+  2. Serialización de payloads en `postReport` (eliminado `JSONDecode` redundante).
+  3. Soporte de actuadores `CSG_OPERATION` (`GeometryService`) y `SET_TERRAIN_VOXELS` en el Companion Plugin.
+  4. Session locking con `JobId` y detección de adquisición de lease en `DataPersistenceService`.
+  5. Deduplicación atómica con `UpdateAsync` en `MonetizationService` antes de entregar productos.
+  6. Corrección de articulación `Neck` en `UpperTorso` y transformación de puntería a espacio objeto en `CharacterController`.
+  7. Captura de pantalla enfocada en el rect de la ventana de Roblox Studio.
+  8. Protecciones con `pcall` en `Janitor:Cleanup()` y middleware `listenGuarded` en `NetworkSecurityService`.
 - `[2026-09-07]` **Decisión de Rediseño de Protocolo**: Reemplazo de supuestos WebSockets en Studio por Servidor HTTP Long-Polling en Node.js debido a restricciones del motor de Luau (`HttpService` no tiene cliente WebSocket).
 - `[2026-09-07]` **Decisión de Visión Host-Side**: El recorte de pantalla se ejecuta a nivel de host en el SO porque Roblox Studio no permite a los plugins escribir imágenes PNG a disco.
 - `[2026-09-07]` **Decisión de Integración con skillsGV**: Se adopta el estándar de 197 skills como meta-orquestador (DoD checker, Decision Gate, Router, Project Tracker), integrando las 235 habilidades de RAASE como catálogo de dominio técnico Luau.
