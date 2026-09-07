@@ -73,11 +73,11 @@ gemsLabel.TextSize = 18
 gemsLabel.TextXAlignment = Enum.TextXAlignment.Left
 gemsLabel.Parent = statsContainer
 
--- Shop Button (Bottom Right)
+-- Shop Button (Top Right to avoid mobile virtual jump controls)
 local shopButton = Instance.new("TextButton")
 shopButton.Name = "ShopButton"
-shopButton.Size = UDim2.new(0.12, 0, 0.07, 0)
-shopButton.Position = UDim2.new(0.85, 0, 0.88, 0)
+shopButton.Size = UDim2.new(0.11, 0, 0.06, 0)
+shopButton.Position = UDim2.new(0.86, 0, 0.03, 0)
 shopButton.BackgroundColor3 = Color3.fromRGB(49, 130, 206)
 shopButton.Font = Enum.Font.BuilderSansExtraBold
 shopButton.Text = "TIENDA"

@@ -39,20 +39,25 @@ function Janitor:Cleanup()
 	local tasks = (self :: any)._tasks
 
 	for task, method in pairs(tasks) do
-		if typeof(task) == "RBXScriptConnection" then
-			(task :: RBXScriptConnection):Disconnect()
-		elseif typeof(task) == "Instance" then
-			(task :: Instance):Destroy()
-		elseif typeof(task) == "thread" then
-			task.cancel(task :: thread)
-		elseif typeof(task) == "function" then
-			(task :: () -> ())()
-		elseif typeof(task) == "table" then
-			local destroyFn = (task :: any)[method == true and "Destroy" or method]
-			if typeof(destroyFn) == "function" then
-				destroyFn(task)
+		pcall(function()
+			if typeof(task) == "RBXScriptConnection" then
+				(task :: RBXScriptConnection):Disconnect()
+			elseif typeof(task) == "Instance" then
+				(task :: Instance):Destroy()
+			elseif typeof(task) == "thread" then
+				local status = coroutine.status(task :: thread)
+				if status ~= "dead" then
+					task.cancel(task :: thread)
+				end
+			elseif typeof(task) == "function" then
+				(task :: () -> ())()
+			elseif typeof(task) == "table" then
+				local destroyFn = (task :: any)[method == true and "Destroy" or method]
+				if typeof(destroyFn) == "function" then
+					destroyFn(task)
+				end
 			end
-		end
+		end)
 		tasks[task] = nil
 	end
 end

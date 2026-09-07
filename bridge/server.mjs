@@ -137,6 +137,12 @@ const server = http.createServer(async (req, res) => {
         sendJson(res, 200, cmd);
       }
 
+      req.on('close', () => {
+        clearTimeout(timer);
+        const idx = waitingPollers.indexOf(fulfill);
+        if (idx !== -1) waitingPollers.splice(idx, 1);
+      });
+
       waitingPollers.push(fulfill);
       return;
     }
@@ -202,6 +208,14 @@ const server = http.createServer(async (req, res) => {
       let error = '';
       pyProcess.stdout.on('data', d => { output += d.toString(); });
       pyProcess.stderr.on('data', d => { error += d.toString(); });
+
+      pyProcess.on('error', err => {
+        sendJson(res, 500, {
+          success: false,
+          error: 'Failed to launch screen capture worker process',
+          details: err.message
+        });
+      });
 
       pyProcess.on('close', code => {
         if (code === 0) {

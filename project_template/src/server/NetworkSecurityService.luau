@@ -78,8 +78,12 @@ function NetworkSecurityService.checkRateLimit(player: Player, remoteName: strin
 	return false
 end
 
--- Spatial Distance Validation (Euclidean magnitude check)
+-- Spatial Distance Validation (Euclidean magnitude check with runtime type safety)
 function NetworkSecurityService.validateProximity(player: Player, targetPosition: Vector3, maxDistance: number?): boolean
+	if typeof(targetPosition) ~= "Vector3" then
+		return false
+	end
+
 	local maxDist = maxDistance or 15
 	local char = player.Character
 	if not char then
@@ -96,7 +100,7 @@ function NetworkSecurityService.validateProximity(player: Player, targetPosition
 end
 
 -- Safe RemoteEvent Creator with built-in Token Bucket enforcement
-function NetworkSecurityService.createGuardedRemote(remoteName: string, maxTokens: number?, refillRate: number?): RemoteEvent
+function NetworkSecurityService.createGuardedRemote(remoteName: string): RemoteEvent
 	local existing = remotesFolder:FindFirstChild(remoteName) :: RemoteEvent?
 	if existing then
 		return existing
@@ -106,6 +110,16 @@ function NetworkSecurityService.createGuardedRemote(remoteName: string, maxToken
 	remote.Name = remoteName
 	remote.Parent = remotesFolder
 	return remote
+end
+
+-- Attach guarded listener with Token Bucket enforcement
+function NetworkSecurityService.listenGuarded(remote: RemoteEvent, callback: (player: Player, ...any) -> (), cost: number?)
+	local tokenCost = cost or 1
+	remote.OnServerEvent:Connect(function(player: Player, ...: any)
+		if NetworkSecurityService.checkRateLimit(player, remote.Name, tokenCost) then
+			callback(player, ...)
+		end
+	end)
 end
 
 Players.PlayerAdded:Connect(NetworkSecurityService.initPlayer)

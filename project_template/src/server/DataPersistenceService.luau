@@ -1,7 +1,8 @@
 --!strict
 --[[
     DataPersistenceService.luau
-    Transactional DataStore management with Session Locking and BindToClose safety.
+    Transactional DataStore management with robust Session Locking, JobId tracking,
+    exponential backoff retries, and clean BindToClose safety.
 --]]
 
 local DataStoreService = game:GetService("DataStoreService")
@@ -17,7 +18,8 @@ local DataPersistenceService = {}
 DataPersistenceService.__index = DataPersistenceService
 
 local activeSessions: { [number]: Types.PlayerData } = {}
-local SESSION_LOCK_TIMEOUT_SEC = 1800 -- 30 minutes
+local SESSION_LOCK_TIMEOUT_SEC = 900 -- 15 minutes lease
+local CURRENT_JOB_ID = game.JobId ~= "" and game.JobId or "Studio_Instance"
 
 local DEFAULT_DATA: Types.PlayerData = {
 	coins = 0,
@@ -28,9 +30,9 @@ local DEFAULT_DATA: Types.PlayerData = {
 	unlockedIslands = { "SpawnIsland" },
 	schemaVersion = 2,
 	sessionLockTimestamp = nil,
+	sessionLockJobId = nil,
 }
 
--- Deep copy table
 local function cloneTable<T>(tbl: T): T
 	local result = {}
 	for k, v in pairs(tbl :: any) do
@@ -43,7 +45,6 @@ local function cloneTable<T>(tbl: T): T
 	return (result :: any) :: T
 end
 
--- Exponential Backoff Retry Wrapper
 local function retryAsync<T>(fn: () -> T, maxRetries: number?): (boolean, T | string)
 	local retries = maxRetries or 3
 	local delaySec = 1
@@ -66,31 +67,38 @@ end
 function DataPersistenceService.loadData(player: Player): Types.PlayerData?
 	local key = "Player_" .. tostring(player.UserId)
 	local now = os.time()
+	local lockAcquired = false
 
 	local success, result = retryAsync(function()
 		return PlayerDataStore:UpdateAsync(key, function(saved: any)
 			local data: Types.PlayerData = saved or cloneTable(DEFAULT_DATA)
 
-			-- Verify Session Lock
+			-- Verify Session Lock ownership
 			if data.sessionLockTimestamp and (now - data.sessionLockTimestamp) < SESSION_LOCK_TIMEOUT_SEC then
-				-- Session is locked by another server
-				return nil
+				-- If locked by another server, refuse acquisition
+				if data.sessionLockJobId and data.sessionLockJobId ~= CURRENT_JOB_ID then
+					lockAcquired = false
+					return nil -- Abort update
+				end
 			end
 
-			-- Acquire Lock
+			-- Acquire or refresh Lock for current server
+			lockAcquired = true
 			data.sessionLockTimestamp = now
+			data.sessionLockJobId = CURRENT_JOB_ID
 			return data
 		end)
 	end)
 
-	if not success or result == nil then
-		warn(string.format("[DATASTORE] Failed to acquire session lock for %s (%d)", player.Name, player.UserId))
-		player:Kick("Tu perfil de datos está activo en otro servidor. Reintenta en unos instantes.")
+	if not success or not lockAcquired or result == nil then
+		warn(string.format("[DATASTORE] Session lock denied for %s (%d). Active in another server.", player.Name, player.UserId))
+		player:Kick("Tu perfil de datos está activo en otro servidor. Por favor reintenta en unos instantes.")
 		return nil
 	end
 
 	local loadedData = result :: Types.PlayerData
 	activeSessions[player.UserId] = loadedData
+	print(string.format("[DATASTORE] Loaded profile for %s (%d) with JobId %s", player.Name, player.UserId, CURRENT_JOB_ID))
 	return loadedData
 end
 
@@ -104,13 +112,24 @@ function DataPersistenceService.saveData(player: Player, isReleasingSession: boo
 
 	retryAsync(function()
 		return PlayerDataStore:UpdateAsync(key, function(current: any)
-			local toSave = cloneTable(data)
+			local target = current or cloneTable(DEFAULT_DATA)
+			-- Merge session changes into persistent state
+			target.coins = data.coins
+			target.gems = data.gems
+			target.jumpMultiplier = data.jumpMultiplier
+			target.speedMultiplier = data.speedMultiplier
+			target.inventory = cloneTable(data.inventory)
+			target.unlockedIslands = cloneTable(data.unlockedIslands)
+			target.schemaVersion = data.schemaVersion
+
 			if isReleasingSession then
-				toSave.sessionLockTimestamp = nil
+				target.sessionLockTimestamp = nil
+				target.sessionLockJobId = nil
 			else
-				toSave.sessionLockTimestamp = os.time()
+				target.sessionLockTimestamp = os.time()
+				target.sessionLockJobId = CURRENT_JOB_ID
 			end
-			return toSave
+			return target
 		end)
 	end)
 
@@ -133,16 +152,24 @@ Players.PlayerRemoving:Connect(function(player)
 end)
 
 game:BindToClose(function()
-	if RunService:IsStudio() then
-		task.wait(1)
+	local players = Players:GetPlayers()
+	if #players == 0 then
+		return
 	end
 
-	for _, player in Players:GetPlayers() do
+	local completed = 0
+	for _, player in players do
 		task.spawn(function()
-			DataPersistenceService.saveData(player, true)
+			pcall(DataPersistenceService.saveData, player, true)
+			completed += 1
 		end)
 	end
-	task.wait(3)
+
+	-- Wait until saves complete or max 6 seconds to respect engine limits
+	local start = os.clock()
+	while completed < #players and (os.clock() - start) < 6 do
+		task.wait(0.1)
+	end
 end)
 
 return DataPersistenceService

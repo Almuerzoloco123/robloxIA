@@ -59,13 +59,16 @@ local function postReport(commandId: string, status: "SUCCESS" | "ERROR", detail
 		telemetry = getStudioTelemetry(),
 	}
 
-	pcall(function()
+	local success, err = pcall(function()
 		HttpService:PostAsync(
 			REPORT_URL,
-			HttpService:JSONDecode(HttpService:JSONEncode(payload)),
+			HttpService:JSONEncode(payload),
 			Enum.HttpContentType.ApplicationJson
 		)
 	end)
+	if not success then
+		warn(string.format("[RAASE 2.0] Failed to post execution report: %s", tostring(err)))
+	end
 end
 
 --------------------------------------------------------------------------------
@@ -239,6 +242,65 @@ local function handleFocusCamera(args: { [string]: any }): { [string]: any }
 	return { cameraPosition = targetPos, distance = distance }
 end
 
+-- Handler: CSG Operation (Union, Subtract, Intersect)
+local function handleCsgOperation(args: { [string]: any }): { [string]: any }
+	local operation = args.operation or "Union"
+	local partAName = args.partA
+	local partBName = args.partB
+
+	local partA = workspace:FindFirstChild(partAName, true) :: BasePart?
+	local partB = workspace:FindFirstChild(partBName, true) :: BasePart?
+
+	if not partA or not partB then
+		error(string.format("CSG parts not found: %s, %s", tostring(partAName), tostring(partBName)))
+	end
+
+	local GeometryService = game:GetService("GeometryService")
+	local resultPart: BasePart? = nil
+
+	if operation == "Union" then
+		resultPart = (GeometryService :: any):UnionAsync({ partA, partB })
+	elseif operation == "Subtract" then
+		resultPart = (GeometryService :: any):SubtractAsync(partA, { partB })
+	elseif operation == "Intersect" then
+		resultPart = (GeometryService :: any):IntersectAsync({ partA, partB })
+	else
+		error("Unsupported CSG operation: " .. tostring(operation))
+	end
+
+	if resultPart then
+		resultPart.Name = args.resultName or (partAName .. "_" .. operation)
+		resultPart.Parent = workspace
+		Selection:Set({ resultPart })
+	end
+
+	return { resultName = resultPart and resultPart.Name or "CSG_Failed", operation = operation }
+end
+
+-- Handler: Terrain Voxel Filling
+local function handleSetTerrainVoxels(args: { [string]: any }): { [string]: any }
+	local terrain = workspace.Terrain
+	local shape = args.shape or "Block"
+	local pos = args.position or { 0, 0, 0 }
+	local size = args.size or { 16, 8, 16 }
+	local materialName = args.material or "Grass"
+	local matEnum = (Enum.Material :: any)[materialName] or Enum.Material.Grass
+
+	local center = Vector3.new(pos[1], pos[2], pos[3])
+	local dimensions = Vector3.new(size[1], size[2], size[3])
+
+	if shape == "Block" then
+		terrain:FillBlock(CFrame.new(center), dimensions, matEnum)
+	elseif shape == "Ball" then
+		local radius = math.max(dimensions.X, dimensions.Y, dimensions.Z) / 2
+		terrain:FillBall(center, radius, matEnum)
+	elseif shape == "Wedge" then
+		terrain:FillWedge(CFrame.new(center), dimensions, matEnum)
+	end
+
+	return { shape = shape, material = materialName, position = pos, size = size }
+end
+
 --------------------------------------------------------------------------------
 -- MAIN EXECUTION DISPATCHER
 --------------------------------------------------------------------------------
@@ -253,6 +315,10 @@ local function executeCommand(cmd: { id: string, action: string, args: { [string
 			return handleSpawnPart(cmd.args)
 		elseif cmd.action == "CREATE_ISLAND" then
 			return handleCreateIsland(cmd.args)
+		elseif cmd.action == "CSG_OPERATION" then
+			return handleCsgOperation(cmd.args)
+		elseif cmd.action == "SET_TERRAIN_VOXELS" then
+			return handleSetTerrainVoxels(cmd.args)
 		elseif cmd.action == "SET_LIGHTING" then
 			return handleSetLighting(cmd.args)
 		elseif cmd.action == "FOCUS_CAMERA" then

@@ -9,6 +9,7 @@ export type PlayerData = {
 	unlockedIslands: { string },
 	schemaVersion: number,
 	sessionLockTimestamp: number?,
+	sessionLockJobId: string?,
 }
 
 export type PurchaseRecord = {

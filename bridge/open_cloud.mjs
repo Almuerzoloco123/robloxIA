@@ -86,7 +86,25 @@ export async function uploadAssetOpenCloud({
   }
 
   const result = await response.json();
-  const assetId = result.response?.assetId || result.path?.split('/').pop();
+  let assetId = result.response?.assetId;
+
+  // If async operation is returned, poll until done
+  if (!assetId && result.path) {
+    const opUrl = `https://apis.roblox.com/assets/v1/${result.path}`;
+    for (let i = 0; i < 10; i++) {
+      await new Promise(r => setTimeout(r, 1000));
+      const opRes = await fetch(opUrl, { headers: { 'x-api-key': apiKey } });
+      if (opRes.ok) {
+        const opData = await opRes.json();
+        if (opData.done && opData.response?.assetId) {
+          assetId = opData.response.assetId;
+          break;
+        }
+      }
+    }
+  }
+
+  assetId = assetId || result.response?.assetId || result.path?.split('/').pop();
   return {
     assetId,
     operationId: result.path,
