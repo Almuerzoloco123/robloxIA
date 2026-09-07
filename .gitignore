@@ -1,0 +1,22 @@
+# Tooling local de skills
+skillsGV/
+node_modules/
+*.log
+
+# Capturas temporales de visión
+viewport_latest.png
+viewport_crop_*.png
+bridge/temp/
+
+# Sistema y editores
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Compilados y artefactos de Rojo / Wally
+Packages/
+_Index/
+*.rbxl
+*.rbxlx
+*.rbxm

@@ -1,0 +1,23 @@
+{
+  "name": "robloxia-experience",
+  "tree": {
+    "$className": "DataModel",
+    "ServerScriptService": {
+      "RAASE_Server": {
+        "$path": "src/server"
+      }
+    },
+    "ReplicatedStorage": {
+      "RAASE_Shared": {
+        "$path": "src/shared"
+      }
+    },
+    "StarterPlayer": {
+      "StarterPlayerScripts": {
+        "RAASE_Client": {
+          "$path": "src/client"
+        }
+      }
+    }
+  }
+}

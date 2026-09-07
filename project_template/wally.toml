@@ -1,0 +1,10 @@
+[package]
+name = "nenoeveryday/robloxia-experience"
+version = "2.0.0"
+registry = "https://github.com/UpliftGames/wally-index"
+realm = "shared"
+
+[dependencies]
+Janitor = "howmanysmall/janitor@^1.16.0"
+Promise = "evaera/promise@^4.0.0"
+Signal = "stravant/goodsignal@^1.0.0"

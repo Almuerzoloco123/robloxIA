@@ -1,0 +1,14 @@
+{
+  "name": "robloxia-bridge",
+  "version": "2.0.0",
+  "description": "Localhost HTTP Bridge and Vision Worker for Roblox Studio (RAASE 2.0)",
+  "type": "module",
+  "main": "server.mjs",
+  "scripts": {
+    "start": "node server.mjs",
+    "capture": "python screen_capture.py"
+  },
+  "keywords": ["roblox", "rojo", "luau", "ai-agent", "raase"],
+  "author": "NenoEveryDay",
+  "license": "MIT"
+}

@@ -1,0 +1,9 @@
+{
+  "name": "RAASE_CompanionPlugin",
+  "tree": {
+    "$className": "Folder",
+    "CompanionPlugin": {
+      "$path": "CompanionPlugin.server.luau"
+    }
+  }
+}
