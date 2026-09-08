@@ -1,10 +1,9 @@
 #!/usr/bin/env node
 // @ts-check
 /**
- * Attaches ProximityPrompts, BillboardGuis, and Signs directly into Studio Workspace models.
+ * Attaches interactive ProximityPrompts and BillboardGuis to the V3 Citadel Lobby.
+ * Matches exact coordinates and interaction logic for all 5 zones.
  */
-
-import fs from 'node:fs';
 
 const BRIDGE_URL = process.env.RAASE_BRIDGE_URL || 'http://127.0.0.1:34873';
 
@@ -25,324 +24,286 @@ async function sendCommand(action, args = {}, shouldWait = true) {
 async function attachInteractiveElements() {
   console.log('🔮 Adding interactive ProximityPrompts and Billboard GUIs to all 5 zones in Studio...');
 
-  // Helper to attach BillboardGui + TextLabel
-  async function addBillboard(parentPath, text, offsetY = 2.5, textColor = [255, 235, 160], size = [5, 1.5]) {
-    // Modify instance with prompt or billboard if supported, or spawn as child
+  // Wipe previous interaction triggers model if any
+  try {
+    await sendCommand('DELETE_OBJECT', { targetPath: 'MagicLobby_V3_Interactions' }, true);
+  } catch {
+    // ignore
   }
 
-  // Zone 1: Matchmaking Portal Prompt
-  await sendCommand('BATCH_SPAWN', {
-    modelName: 'MagicLobby_Zone1_Matchmaking',
-    instances: [
-      {
-        className: 'Part',
-        name: 'Portal_Interactive_Trigger',
-        position: [0, 2.2, -48],
-        size: [5, 0.4, 5],
-        transparency: 0.95,
-        anchored: true,
-        canCollide: false,
-        proximityPrompt: {
-          actionText: 'Entrar en Cola',
-          objectText: 'Portal de Duelos Mágicos',
-          holdDuration: 0.5,
-          maxDistance: 14
-        },
-        billboardGui: {
-          text: '🔮 PORTAL DE PARTIDAS\n[Mantén E para Entrar]',
-          offsetY: 3.5,
-          textColor: [120, 220, 255]
-        }
+  const triggers = [
+    // -------------------------------------------------------------------------
+    // Zone 1: Castle Matchmaking Portal
+    // -------------------------------------------------------------------------
+    {
+      className: 'Part',
+      name: 'Trigger_Zone1_Matchmaking',
+      position: [0, 3.2, -55.5],
+      size: [8.0, 0.4, 6.0],
+      transparency: 0.95,
+      anchored: true,
+      canCollide: false,
+      proximityPrompt: {
+        actionText: 'Entrar en Cola',
+        objectText: 'Portal de Duelos Mágicos',
+        holdDuration: 0.5,
+        maxDistance: 16
+      },
+      billboardGui: {
+        text: '⚔️ PORTAL DE PARTIDAS\n[Mantén E para Entrar]',
+        offsetY: 4.5,
+        textColor: [120, 225, 255]
       }
-    ]
+    },
+
+    // -------------------------------------------------------------------------
+    // Zone 2: Gringotts Vault Crates & Keys
+    // -------------------------------------------------------------------------
+    {
+      className: 'Part',
+      name: 'Trigger_Zone2_Crate_Common',
+      position: [31.0, 4.6, -11.5],
+      size: [3.2, 2.0, 3.8],
+      transparency: 0.95,
+      anchored: true,
+      canCollide: false,
+      proximityPrompt: {
+        actionText: 'Abrir Cofre Común',
+        objectText: '1x Llave de Bronce',
+        holdDuration: 0.6,
+        maxDistance: 10
+      },
+      billboardGui: {
+        text: '📦 Cofre de Roble Antiguo\n[Llave de Bronce]',
+        offsetY: 3.2,
+        textColor: [240, 200, 120]
+      }
+    },
+    {
+      className: 'Part',
+      name: 'Trigger_Zone2_Crate_Rare',
+      position: [31.0, 4.6, -5.0],
+      size: [3.2, 2.0, 3.8],
+      transparency: 0.95,
+      anchored: true,
+      canCollide: false,
+      proximityPrompt: {
+        actionText: 'Abrir Bóveda Rúnica',
+        objectText: '1x Llave de Acero Rúnico',
+        holdDuration: 0.8,
+        maxDistance: 10
+      },
+      billboardGui: {
+        text: '🗝️ Bóveda de Hierro Rúnico\n[Llave de Acero Rúnico]',
+        offsetY: 3.2,
+        textColor: [100, 220, 255]
+      }
+    },
+    {
+      className: 'Part',
+      name: 'Trigger_Zone2_Crate_Legendary',
+      position: [31.0, 4.6, 1.5],
+      size: [3.2, 2.0, 3.8],
+      transparency: 0.95,
+      anchored: true,
+      canCollide: false,
+      proximityPrompt: {
+        actionText: 'Abrir Reliquia Real',
+        objectText: '1x Llave Real Dorada',
+        holdDuration: 1.2,
+        maxDistance: 10
+      },
+      billboardGui: {
+        text: '👑 Reliquia Real Arcana\n[Llave Real Dorada]',
+        offsetY: 3.2,
+        textColor: [255, 225, 75]
+      }
+    },
+
+    // -------------------------------------------------------------------------
+    // Zone 3: Tudor Apothecary & Porch Cauldron
+    // -------------------------------------------------------------------------
+    {
+      className: 'Part',
+      name: 'Trigger_Zone3_Cauldron',
+      position: [-17.5, 4.0, -7.0],
+      size: [4.8, 3.0, 4.8],
+      transparency: 0.95,
+      anchored: true,
+      canCollide: false,
+      proximityPrompt: {
+        actionText: 'Elaborar Brebaje Mágico',
+        objectText: 'Caldero Esmeralda',
+        holdDuration: 0.8,
+        maxDistance: 12
+      },
+      billboardGui: {
+        text: '🍵 Caldero del Boticario\n[Brebaje Mágico]',
+        offsetY: 3.5,
+        textColor: [80, 255, 130]
+      }
+    },
+    {
+      className: 'Part',
+      name: 'Trigger_Zone3_PotionShop',
+      position: [-21.2, 4.5, 0.5],
+      size: [2.0, 4.0, 5.5],
+      transparency: 0.95,
+      anchored: true,
+      canCollide: false,
+      proximityPrompt: {
+        actionText: 'Comprar Pociones',
+        objectText: 'Estantería de Viales',
+        holdDuration: 0.4,
+        maxDistance: 10
+      },
+      billboardGui: {
+        text: '🧪 Pociones & Elixires\n[Salud, Maná y Celeridad]',
+        offsetY: 3.2,
+        textColor: [200, 160, 255]
+      }
+    },
+
+    // -------------------------------------------------------------------------
+    // Zone 4: Dueling Arena Target Mannequins
+    // -------------------------------------------------------------------------
+    {
+      className: 'Part',
+      name: 'Trigger_Zone4_Dummy_Apprentice',
+      position: [35.5, 4.5, 18.0],
+      size: [2.5, 4.5, 2.5],
+      transparency: 0.95,
+      anchored: true,
+      canCollide: false,
+      proximityPrompt: {
+        actionText: 'Lanzar Hechizo de Prueba',
+        objectText: 'Maniquí de Aprendiz (Nv. 1)',
+        holdDuration: 0.2,
+        maxDistance: 14
+      },
+      billboardGui: {
+        text: '🎯 Maniquí de Aprendiz [Nv. 1]\nHP: 100/100',
+        offsetY: 3.8,
+        textColor: [120, 200, 255]
+      }
+    },
+    {
+      className: 'Part',
+      name: 'Trigger_Zone4_Dummy_Battle',
+      position: [35.5, 4.5, 24.0],
+      size: [2.5, 4.5, 2.5],
+      transparency: 0.95,
+      anchored: true,
+      canCollide: false,
+      proximityPrompt: {
+        actionText: 'Lanzar Hechizo de Prueba',
+        objectText: 'Maniquí de Batalla (Nv. 25)',
+        holdDuration: 0.2,
+        maxDistance: 14
+      },
+      billboardGui: {
+        text: '🛡️ Maniquí de Batalla [Nv. 25]\nHP: 500/500',
+        offsetY: 3.8,
+        textColor: [255, 120, 120]
+      }
+    },
+    {
+      className: 'Part',
+      name: 'Trigger_Zone4_Dummy_Archmage',
+      position: [35.5, 4.5, 30.0],
+      size: [2.5, 4.5, 2.5],
+      transparency: 0.95,
+      anchored: true,
+      canCollide: false,
+      proximityPrompt: {
+        actionText: 'Lanzar Hechizo de Prueba',
+        objectText: 'Maniquí de Archimago (Nv. 60)',
+        holdDuration: 0.2,
+        maxDistance: 14
+      },
+      billboardGui: {
+        text: '⚡ Maniquí de Archimago [Nv. 60]\nHP: 2000/2000',
+        offsetY: 3.8,
+        textColor: [220, 130, 255]
+      }
+    },
+
+    // -------------------------------------------------------------------------
+    // Zone 5: Elf-Dwarf Blacksmith, Anvil & Rings Bench
+    // -------------------------------------------------------------------------
+    {
+      className: 'Part',
+      name: 'Trigger_Zone5_Anvil_Repair',
+      position: [-30.0, 4.5, 20.0],
+      size: [3.0, 2.5, 4.0],
+      transparency: 0.95,
+      anchored: true,
+      canCollide: false,
+      proximityPrompt: {
+        actionText: 'Reparar & Forjar Armaduras',
+        objectText: 'Yunque de Acero Enano',
+        holdDuration: 0.7,
+        maxDistance: 10
+      },
+      billboardGui: {
+        text: '🔨 Forja Arcana\n[Reparar Armaduras]',
+        offsetY: 2.8,
+        textColor: [255, 180, 80]
+      }
+    },
+    {
+      className: 'Part',
+      name: 'Trigger_Zone5_Rings_Bench',
+      position: [-29.5, 4.0, 29.0],
+      size: [3.5, 2.0, 6.0],
+      transparency: 0.95,
+      anchored: true,
+      canCollide: false,
+      proximityPrompt: {
+        actionText: 'Encantar Anillos Mágicos',
+        objectText: 'Mesa de Joyería Mágica',
+        holdDuration: 0.7,
+        maxDistance: 10
+      },
+      billboardGui: {
+        text: '💍 Mesa de Lapidario\n[Mejorar & Encantar Anillos]',
+        offsetY: 2.8,
+        textColor: [255, 130, 220]
+      }
+    },
+    {
+      className: 'Part',
+      name: 'Trigger_Zone5_ElfDwarf_NPC',
+      position: [-30.0, 4.0, 22.8],
+      size: [2.5, 3.5, 2.5],
+      transparency: 0.95,
+      anchored: true,
+      canCollide: false,
+      proximityPrompt: {
+        actionText: 'Hablar con Thistlebeard',
+        objectText: 'Maestro Enano-Elfo',
+        holdDuration: 0.4,
+        maxDistance: 12
+      },
+      billboardGui: {
+        text: '🧔 Thistlebeard el Artífice\n[Maestro Forjador & Joyero]',
+        offsetY: 3.5,
+        textColor: [140, 240, 160]
+      }
+    }
+  ];
+
+  console.log(`📦 Spawning ${triggers.length} interactive prompt triggers...`);
+  await sendCommand('BATCH_SPAWN', {
+    modelName: 'MagicLobby_V3_Interactions',
+    parent: 'workspace',
+    instances: triggers
   }, true);
 
-  // Zone 2: Crates Vault Prompts
-  await sendCommand('BATCH_SPAWN', {
-    modelName: 'MagicLobby_Zone2_CratesVault',
-    instances: [
-      {
-        className: 'Part',
-        name: 'Prompt_Crate_Common',
-        position: [50, 3.8, -5],
-        size: [2.5, 1.0, 2.0],
-        transparency: 0.95,
-        anchored: true,
-        canCollide: false,
-        proximityPrompt: {
-          actionText: 'Abrir Cofre Común',
-          objectText: '1x Llave Rúnica',
-          holdDuration: 0.6,
-          maxDistance: 10
-        },
-        billboardGui: {
-          text: '📦 Cofre de Madera\n[Llave Común]',
-          offsetY: 2.2,
-          textColor: [120, 200, 255]
-        }
-      },
-      {
-        className: 'Part',
-        name: 'Prompt_Crate_Ancient',
-        position: [50, 3.8, 0],
-        size: [2.5, 1.0, 2.0],
-        transparency: 0.95,
-        anchored: true,
-        canCollide: false,
-        proximityPrompt: {
-          actionText: 'Abrir Bóveda Ancestral',
-          objectText: '1x Llave de Hierro',
-          holdDuration: 0.8,
-          maxDistance: 10
-        },
-        billboardGui: {
-          text: '🗝️ Bóveda Ancestral\n[Llave de Hierro]',
-          offsetY: 2.2,
-          textColor: [190, 110, 255]
-        }
-      },
-      {
-        className: 'Part',
-        name: 'Prompt_Crate_RelicGold',
-        position: [50, 3.8, 5],
-        size: [2.5, 1.0, 2.0],
-        transparency: 0.95,
-        anchored: true,
-        canCollide: false,
-        proximityPrompt: {
-          actionText: 'Abrir Reliquia Sagrada',
-          objectText: '1x Llave de Oro',
-          holdDuration: 1.0,
-          maxDistance: 10
-        },
-        billboardGui: {
-          text: '👑 Reliquia de Oro\n[Llave Sagrada]',
-          offsetY: 2.2,
-          textColor: [255, 220, 80]
-        }
-      }
-    ]
-  }, true);
-
-  // Zone 3: Potion Shop & Cauldron Prompts
-  await sendCommand('BATCH_SPAWN', {
-    modelName: 'MagicLobby_Zone3_PotionShop',
-    instances: [
-      {
-        className: 'Part',
-        name: 'Prompt_Cauldron',
-        position: [-46, 3.8, -4],
-        size: [3.0, 1.0, 3.0],
-        transparency: 0.95,
-        anchored: true,
-        canCollide: false,
-        proximityPrompt: {
-          actionText: 'Beber Brebaje Borboteante',
-          objectText: 'Caldero del Boticario',
-          holdDuration: 0.8,
-          maxDistance: 10
-        },
-        billboardGui: {
-          text: '🧪 Gran Caldero Mágico\n[Salud + Velocidad]',
-          offsetY: 2.4,
-          textColor: [80, 255, 120]
-        }
-      },
-      {
-        className: 'Part',
-        name: 'Prompt_Potion_Counter',
-        position: [-42, 4.8, 0],
-        size: [2.0, 1.0, 8.0],
-        transparency: 0.95,
-        anchored: true,
-        canCollide: false,
-        proximityPrompt: {
-          actionText: 'Comprar Pociones',
-          objectText: 'Boticario Mágico',
-          holdDuration: 0.5,
-          maxDistance: 12
-        },
-        billboardGui: {
-          text: '✨ TIENDA DE POCIONES\n[Pociones y Elixires]',
-          offsetY: 2.5,
-          textColor: [255, 215, 100]
-        }
-      }
-    ]
-  }, true);
-
-  // Zone 4: Combat Mannequins Prompts & Health Bars
-  await sendCommand('BATCH_SPAWN', {
-    modelName: 'MagicLobby_Zone4_SpellRange',
-    instances: [
-      {
-        className: 'Part',
-        name: 'Prompt_Dummy_1',
-        position: [36, 4.0, 46],
-        size: [2.2, 3.0, 2.2],
-        transparency: 0.95,
-        anchored: true,
-        canCollide: false,
-        proximityPrompt: {
-          actionText: 'Lanzar Hechizo',
-          objectText: 'Maniquí de Aprendiz',
-          holdDuration: 0.2,
-          maxDistance: 15
-        },
-        billboardGui: {
-          text: '🎯 Maniquí de Aprendiz\n[100 / 100 HP]',
-          offsetY: 3.8,
-          textColor: [120, 255, 140]
-        }
-      },
-      {
-        className: 'Part',
-        name: 'Prompt_Dummy_2',
-        position: [43, 4.0, 49],
-        size: [2.2, 3.0, 2.2],
-        transparency: 0.95,
-        anchored: true,
-        canCollide: false,
-        proximityPrompt: {
-          actionText: 'Lanzar Hechizo',
-          objectText: 'Maniquí de Batalla',
-          holdDuration: 0.2,
-          maxDistance: 15
-        },
-        billboardGui: {
-          text: '⚔️ Maniquí de Batalla\n[250 / 250 HP]',
-          offsetY: 3.8,
-          textColor: [255, 200, 80]
-        }
-      },
-      {
-        className: 'Part',
-        name: 'Prompt_Dummy_3',
-        position: [49, 4.0, 45],
-        size: [2.2, 3.0, 2.2],
-        transparency: 0.95,
-        anchored: true,
-        canCollide: false,
-        proximityPrompt: {
-          actionText: 'Lanzar Hechizo',
-          objectText: 'Maniquí de Archimago',
-          holdDuration: 0.2,
-          maxDistance: 15
-        },
-        billboardGui: {
-          text: '🌟 Maniquí de Archimago\n[500 / 500 HP]',
-          offsetY: 3.8,
-          textColor: [200, 110, 255]
-        }
-      }
-    ]
-  }, true);
-
-  // Zone 5: Elf-Dwarf Blacksmith Nameplate & Prompt
-  await sendCommand('BATCH_SPAWN', {
-    modelName: 'MagicLobby_Zone5_ElfForge',
-    instances: [
-      {
-        className: 'Part',
-        name: 'Prompt_Elf_Blacksmith',
-        position: [-40, 4.0, 43],
-        size: [3.0, 2.0, 3.0],
-        transparency: 0.95,
-        anchored: true,
-        canCollide: false,
-        proximityPrompt: {
-          actionText: 'Mejorar Armaduras y Anillos',
-          objectText: 'Maestro Forjador Elfo',
-          holdDuration: 0.7,
-          maxDistance: 12
-        },
-        billboardGui: {
-          text: '🔨 Maestro Forjador Elfo\n«Herrería y Anillos Arcanos»',
-          offsetY: 3.2,
-          textColor: [255, 215, 90]
-        }
-      }
-    ]
-  }, true);
-
-  // Signposts: Add 3D Billboards to each directional sign board
-  await sendCommand('BATCH_SPAWN', {
-    modelName: 'MagicLobby_Details',
-    instances: [
-      {
-        className: 'Part',
-        name: 'SignText_Portal',
-        position: [0, 7.2, 3.8],
-        size: [0.5, 0.5, 3.0],
-        transparency: 1,
-        anchored: true,
-        canCollide: false,
-        billboardGui: {
-          text: '🏰 Partidas (Norte)',
-          offsetY: 0.6,
-          textColor: [120, 215, 255]
-        }
-      },
-      {
-        className: 'Part',
-        name: 'SignText_Crates',
-        position: [1.2, 6.3, 5],
-        size: [3.0, 0.5, 0.5],
-        transparency: 1,
-        anchored: true,
-        canCollide: false,
-        billboardGui: {
-          text: '📦 Bóveda de Cofres (Este)',
-          offsetY: 0.6,
-          textColor: [255, 215, 90]
-        }
-      },
-      {
-        className: 'Part',
-        name: 'SignText_Potions',
-        position: [-1.2, 5.4, 5],
-        size: [3.0, 0.5, 0.5],
-        transparency: 1,
-        anchored: true,
-        canCollide: false,
-        billboardGui: {
-          text: '🧪 Boticario & Pociones (Oeste)',
-          offsetY: 0.6,
-          textColor: [80, 255, 120]
-        }
-      },
-      {
-        className: 'Part',
-        name: 'SignText_Dueling',
-        position: [1.0, 4.5, 6.0],
-        size: [2.5, 0.5, 0.5],
-        transparency: 1,
-        anchored: true,
-        canCollide: false,
-        billboardGui: {
-          text: '🎯 Maniquís de Prueba (Sureste)',
-          offsetY: 0.6,
-          textColor: [255, 140, 140]
-        }
-      },
-      {
-        className: 'Part',
-        name: 'SignText_Forge',
-        position: [-1.0, 3.6, 6.0],
-        size: [2.5, 0.5, 0.5],
-        transparency: 1,
-        anchored: true,
-        canCollide: false,
-        billboardGui: {
-          text: '🔨 Forja del Elfo (Suroeste)',
-          offsetY: 0.6,
-          textColor: [255, 200, 100]
-        }
-      }
-    ]
-  }, true);
-
-  console.log('✅ Interactive Prompts and 3D Billboard GUIs attached successfully!');
+  console.log('✅ Interactive Prompts and Guis attached successfully!');
 }
 
-attachInteractiveElements().catch(console.error);
+attachInteractiveElements().catch(err => {
+  console.error('❌ Failed to attach interactive triggers:', err);
+  process.exit(1);
+});

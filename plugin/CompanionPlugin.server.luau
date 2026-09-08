@@ -1043,6 +1043,7 @@ local function handleFocusCamera(args: { [string]: any }): { [string]: any }
 		local center = Vector3.new(targetPos[1], targetPos[2], targetPos[3])
 		local offset = CFrame.Angles(0, yaw, 0) * CFrame.Angles(pitch, 0, 0) * Vector3.new(0, 0, distance)
 		cam.CFrame = CFrame.lookAt(center + offset, center)
+		cam.Focus = CFrame.new(center)
 	end
 
 	return { cameraPosition = targetPos, distance = distance }

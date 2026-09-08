@@ -145,6 +145,11 @@ async function batchSpawn(filePath) {
 }
 
 async function triggerCapture() {
+  try {
+    await sendCommand('EXECUTE_LUAU', { code: "game:GetService('Selection'):Set({})" }, true);
+  } catch {
+    // ignore
+  }
   console.log('[RAASE 2.1] Triggering Viewport Screen Capture...');
   const res = await fetchJson('/api/capture', { method: 'POST' });
   console.log(`📸 ${res.message}: ${res.file}`);
@@ -218,8 +223,10 @@ async function main() {
 
       case 'focus-camera':
         await sendCommand('FOCUS_CAMERA', {
-          position: [parseFloat(args[1] || '0'), parseFloat(args[2] || '20'), parseFloat(args[3] || '0')],
-          distance: args[4] ? parseFloat(args[4]) : 45
+          position: [parseFloat(args[1] || '0'), parseFloat(args[2] || '10'), parseFloat(args[3] || '0')],
+          distance: args[4] ? parseFloat(args[4]) : 35,
+          pitch: args[5] ? parseFloat(args[5]) : -20,
+          yaw: args[6] ? parseFloat(args[6]) : 0
         });
         break;
 

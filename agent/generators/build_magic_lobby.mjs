@@ -1,13 +1,12 @@
 #!/usr/bin/env node
 // @ts-check
 /**
- * RAASE 2.1 — Harry Potter Medieval Magic Lobby Generator (V2 High-Fidelity)
- * Procedural architecture with block-based tapered trees, square keep castle towers,
- * vaulted pavilions, 5 detailed interactive zones, warm torches, and clean terrain.
+ * RAASE 2.1 — Harry Potter Medieval Citadel & High Street Lobby Generator (V3 Reimagined)
+ * Completely reimagined from scratch: No isolated kiosks on grass.
+ * Unified dense medieval wizarding sanctuary with continuous cobblestone plazas,
+ * 2-story Tudor apothecary, Gringotts-style stone vault, Norman gatehouse portal,
+ * sunken dueling arena, vaulted smithy with Elf-Dwarf NPC, and towering perimeter pine forest.
  */
-
-import fs from 'node:fs';
-import path from 'node:path';
 
 const BRIDGE_URL = process.env.RAASE_BRIDGE_URL || 'http://127.0.0.1:34873';
 
@@ -33,12 +32,12 @@ async function deleteModel(modelName) {
     await sendCommand('DELETE_OBJECT', { targetPath: modelName }, true);
     console.log(`  🗑️ Cleared existing "${modelName}"`);
   } catch {
-    // ignore if not found
+    // ignore if doesn't exist
   }
 }
 
 async function spawnBatch(modelName, instances, parent = 'workspace') {
-  const CHUNK_SIZE = 120;
+  const CHUNK_SIZE = 100;
   console.log(`📦 Spawning model "${modelName}" (${instances.length} instances total)...`);
   for (let i = 0; i < instances.length; i += CHUNK_SIZE) {
     const chunk = instances.slice(i, i + CHUNK_SIZE);
@@ -51,101 +50,143 @@ async function spawnBatch(modelName, instances, parent = 'workspace') {
   }
 }
 
-// Curated Fantasy Medieval Color Palette
+// -----------------------------------------------------------------------------
+// Curated Palette of Medieval Magical Architecture
+// -----------------------------------------------------------------------------
 const C = {
-  stoneCobble: [130, 125, 120],
-  stoneDark: [75, 72, 70],
-  stoneSlate: [65, 68, 72],
-  stoneLight: [165, 160, 150],
-  woodDark: [70, 48, 32],
-  woodLight: [135, 100, 68],
-  woodPlank: [115, 82, 55],
-  roofShingleRed: [120, 48, 38],
-  roofShingleBlue: [42, 58, 85],
-  roofShingleSlate: [52, 56, 62],
-  ironDark: [42, 45, 50],
-  goldTrim: [220, 175, 55],
-  bronze: [165, 115, 60],
-  fireYellow: [255, 205, 60],
-  fireOrange: [245, 115, 30],
-  magicBlue: [75, 165, 255],
-  magicCyan: [60, 225, 210],
-  magicPurple: [175, 85, 245],
-  magicGold: [255, 220, 85],
-  potionGreen: [45, 215, 85],
-  potionRed: [225, 45, 60],
-  potionBlue: [45, 125, 240],
-  potionPurple: [180, 50, 220],
-  leafPine1: [38, 78, 42],
-  leafPine2: [48, 92, 52],
-  leafPine3: [58, 108, 62],
-  clothStraw: [195, 175, 125],
-  skinElf: [235, 195, 160],
-  beardBrown: [90, 65, 45]
+  // Stone & Masonry
+  stoneStreet: [142, 138, 132],
+  stoneCurb: [95, 92, 88],
+  stoneWallLight: [168, 162, 154],
+  stoneWallDark: [105, 100, 95],
+  stoneSlate: [72, 75, 80],
+  stoneMarble: [210, 208, 202],
+  
+  // Woods & Timbers
+  woodTimberDark: [62, 42, 28],
+  woodPlankWarm: [125, 90, 60],
+  woodPlankAged: [98, 72, 50],
+  woodTrunk: [80, 56, 38],
+  
+  // Stucco & Plaster
+  plasterAged: [222, 216, 200],
+  
+  // Roofs
+  roofSlateBlue: [48, 58, 74],
+  roofShingleRed: [128, 52, 42],
+  roofLeadDark: [55, 58, 64],
+  
+  // Metals
+  ironBlack: [38, 40, 44],
+  bronzeTrim: [175, 125, 65],
+  goldRoyal: [235, 185, 55],
+  silverSteel: [180, 185, 195],
+  
+  // Fire & Light
+  flameCore: [255, 230, 120],
+  flameOuter: [255, 130, 30],
+  torchWood: [75, 50, 30],
+  
+  // Magic & Potions
+  magicCyan: [60, 225, 235],
+  magicBlue: [70, 145, 255],
+  magicPurple: [175, 75, 245],
+  magicGold: [255, 215, 60],
+  potionGreen: [40, 225, 90],
+  potionRed: [235, 45, 65],
+  potionBlue: [45, 130, 245],
+  potionViolet: [195, 55, 230],
+  glassPhial: [215, 240, 255],
+  
+  // Foliage
+  pineDark1: [32, 68, 38],
+  pineDark2: [42, 82, 48],
+  pineLight: [55, 102, 60],
+  barkPine: [68, 48, 32],
+  
+  // NPC & Character
+  skinElf: [238, 200, 168],
+  beardDwarf: [100, 70, 48],
+  tunicGreen: [45, 95, 55],
+  apronLeather: [115, 75, 45]
 };
 
-// Torch Generator
-function createTorch(name, position, wallMounted = false) {
-  const [x, y, z] = position;
+// -----------------------------------------------------------------------------
+// Procedural Torch & Brazier Helpers
+// -----------------------------------------------------------------------------
+function createWallTorch(name, pos, normal = [0, 0, 1]) {
+  const [x, y, z] = pos;
+  const [nx, ny, nz] = normal;
   const items = [];
 
-  if (!wallMounted) {
-    items.push({
-      name: `${name}_Base`,
-      className: 'Part',
-      position: [x, y + 0.4, z],
-      size: [1.2, 0.8, 1.2],
-      material: 'Slate',
-      color: C.stoneSlate,
-      anchored: true
-    });
-    items.push({
-      name: `${name}_Shaft`,
-      className: 'Part',
-      position: [x, y + 3.6, z],
-      size: [0.6, 5.8, 0.6],
-      material: 'Wood',
-      color: C.woodDark,
-      anchored: true
-    });
-  }
+  // Bracket mounted on wall
+  items.push({
+    name: `${name}_Mount`,
+    className: 'Part',
+    position: [x, y, z],
+    size: [0.6, 0.6, 0.2],
+    material: 'Metal',
+    color: C.ironBlack,
+    anchored: true
+  });
 
-  const headY = wallMounted ? y : y + 6.8;
+  // Outward Arm
+  const armX = x + nx * 0.7;
+  const armZ = z + nz * 0.7;
+  items.push({
+    name: `${name}_Arm`,
+    className: 'Part',
+    position: [armX, y + 0.3, armZ],
+    size: [0.3, 0.3, 1.0],
+    material: 'Metal',
+    color: C.ironBlack,
+    anchored: true
+  });
 
+  // Sconce Bowl
+  const bowlX = x + nx * 1.2;
+  const bowlZ = z + nz * 1.2;
+  const bowlY = y + 0.8;
   items.push({
     name: `${name}_Sconce`,
     className: 'Part',
-    position: [x, headY, z],
-    size: [0.9, 0.8, 0.9],
+    position: [bowlX, bowlY, bowlZ],
+    size: [0.7, 0.7, 0.7],
     material: 'Metal',
-    color: C.ironDark,
+    color: C.ironBlack,
     anchored: true
   });
+
+  // Burning Fuel Core
   items.push({
-    name: `${name}_BasaltTip`,
+    name: `${name}_Core`,
     className: 'Part',
-    position: [x, headY + 0.55, z],
-    size: [0.55, 0.6, 0.55],
-    material: 'Basalt',
-    color: [25, 24, 26],
+    position: [bowlX, bowlY + 0.45, bowlZ],
+    size: [0.45, 0.5, 0.45],
+    material: 'Neon',
+    color: C.flameCore,
     anchored: true
   });
+
+  // Dynamic PointLight (Warm & Bright with Shadows)
   items.push({
     className: 'PointLight',
     name: `${name}_Light`,
-    parentPart: `${name}_BasaltTip`,
-    color: [255, 175, 75],
-    brightness: 2.3,
-    range: 24,
+    parentPart: `${name}_Core`,
+    color: [255, 185, 95],
+    brightness: 2.5,
+    range: 26,
     shadows: true
   });
+
+  // Dynamic Flame Particles
   items.push({
     className: 'ParticleEmitter',
-    name: `${name}_FlameVFX`,
-    parentPart: `${name}_BasaltTip`,
-    rate: 16,
-    lifetime: [0.6, 1.2],
-    speed: [1.2, 2.8],
+    name: `${name}_Particles`,
+    parentPart: `${name}_Core`,
+    rate: 18,
+    lifetime: [0.5, 1.1],
+    speed: [1.2, 2.5],
     lightEmission: 0.95,
     lightInfluence: 0.05
   });
@@ -153,1686 +194,2261 @@ function createTorch(name, position, wallMounted = false) {
   return items;
 }
 
-// Bonfire Generator
-function createBonfire(name, position) {
-  const [x, y, z] = position;
+function createFreeTorch(name, pos) {
+  const [x, y, z] = pos;
   const items = [];
 
+  // Stone base
   items.push({
-    name: `${name}_Ring`,
+    name: `${name}_Pedestal`,
     className: 'Part',
-    position: [x, y + 0.3, z],
-    size: [5.5, 0.6, 5.5],
-    material: 'Cobblestone',
-    color: C.stoneDark,
+    position: [x, y + 0.4, z],
+    size: [1.2, 0.8, 1.2],
+    material: 'Slate',
+    color: C.stoneSlate,
     anchored: true
   });
+
+  // Timber post
   items.push({
-    name: `${name}_Coals`,
+    name: `${name}_Post`,
     className: 'Part',
-    position: [x, y + 0.45, z],
-    size: [4.2, 0.5, 4.2],
-    material: 'Basalt',
-    color: [30, 26, 22],
-    anchored: true
-  });
-  items.push({
-    name: `${name}_Log1`,
-    className: 'Part',
-    position: [x, y + 0.85, z],
-    size: [3.8, 0.7, 0.7],
+    position: [x, y + 3.8, z],
+    size: [0.6, 6.0, 0.6],
     material: 'Wood',
-    color: C.woodDark,
+    color: C.woodTimberDark,
     anchored: true
   });
+
+  // Iron brazier cage
   items.push({
-    name: `${name}_Log2`,
+    name: `${name}_Cage`,
     className: 'Part',
-    position: [x, y + 0.85, z],
-    size: [0.7, 0.7, 3.8],
-    material: 'Wood',
-    color: C.woodDark,
+    position: [x, y + 7.1, z],
+    size: [1.1, 1.0, 1.1],
+    material: 'Metal',
+    color: C.ironBlack,
     anchored: true
   });
+
+  // Neon flame core
+  items.push({
+    name: `${name}_Core`,
+    className: 'Part',
+    position: [x, y + 7.6, z],
+    size: [0.6, 0.6, 0.6],
+    material: 'Neon',
+    color: C.flameCore,
+    anchored: true
+  });
+
   items.push({
     className: 'PointLight',
     name: `${name}_Light`,
-    parentPart: `${name}_Coals`,
-    color: [255, 160, 50],
+    parentPart: `${name}_Core`,
+    color: [255, 190, 100],
     brightness: 2.8,
-    range: 30,
-    shadows: true
-  });
-  items.push({
-    className: 'ParticleEmitter',
-    name: `${name}_Flame`,
-    parentPart: `${name}_Coals`,
-    rate: 35,
-    lifetime: [1.0, 1.8],
-    speed: [2, 4.5],
-    lightEmission: 0.9,
-    lightInfluence: 0.1
-  });
-
-  return items;
-}
-
-// -----------------------------------------------------------------------------
-// 1. PLAZA & AVENUES
-// -----------------------------------------------------------------------------
-function buildPlazaAndPaths() {
-  const parts = [];
-
-  // Central Octagonal/Square Courtyard
-  parts.push({
-    name: 'Plaza_CenterFloor',
-    className: 'Part',
-    position: [0, 0.15, 0],
-    size: [44, 0.4, 44],
-    material: 'Cobblestone',
-    color: C.stoneCobble,
-    anchored: true
-  });
-  // Slate Surrounding Border
-  parts.push({
-    name: 'Plaza_Curb_N',
-    className: 'Part',
-    position: [0, 0.35, -22.5],
-    size: [46, 0.5, 1.5],
-    material: 'Slate',
-    color: C.stoneSlate,
-    anchored: true
-  });
-  parts.push({
-    name: 'Plaza_Curb_S',
-    className: 'Part',
-    position: [0, 0.35, 22.5],
-    size: [46, 0.5, 1.5],
-    material: 'Slate',
-    color: C.stoneSlate,
-    anchored: true
-  });
-  parts.push({
-    name: 'Plaza_Curb_W',
-    className: 'Part',
-    position: [-22.5, 0.35, 0],
-    size: [1.5, 0.5, 46],
-    material: 'Slate',
-    color: C.stoneSlate,
-    anchored: true
-  });
-  parts.push({
-    name: 'Plaza_Curb_E',
-    className: 'Part',
-    position: [22.5, 0.35, 0],
-    size: [1.5, 0.5, 46],
-    material: 'Slate',
-    color: C.stoneSlate,
-    anchored: true
-  });
-
-  // Central Monument / Sun Fountain
-  parts.push({
-    name: 'Monument_Pedestal',
-    className: 'Part',
-    position: [0, 1.0, 0],
-    size: [7, 1.4, 7],
-    material: 'Slate',
-    color: C.stoneSlate,
-    anchored: true
-  });
-  parts.push({
-    name: 'Monument_Shaft',
-    className: 'Part',
-    position: [0, 3.8, 0],
-    size: [3.2, 4.4, 3.2],
-    material: 'Cobblestone',
-    color: C.stoneCobble,
-    anchored: true
-  });
-  parts.push({
-    name: 'Monument_Cap',
-    className: 'Part',
-    position: [0, 6.4, 0],
-    size: [4.4, 0.8, 4.4],
-    material: 'Slate',
-    color: C.stoneSlate,
-    anchored: true
-  });
-  // Glowing Celestial Arcane Orb (Sphere)
-  parts.push({
-    name: 'Monument_Orb',
-    className: 'Part',
-    shape: 'Ball',
-    position: [0, 8.2, 0],
-    size: [2.8, 2.8, 2.8],
-    material: 'Glass',
-    transparency: 0.2,
-    color: C.magicCyan,
-    anchored: true
-  });
-  parts.push({
-    className: 'PointLight',
-    name: 'Monument_Glow',
-    parentPart: 'Monument_Orb',
-    color: C.magicCyan,
-    brightness: 2.2,
     range: 28,
     shadows: true
   });
-  parts.push({
+
+  items.push({
     className: 'ParticleEmitter',
-    name: 'Monument_Sparks',
-    parentPart: 'Monument_Orb',
-    rate: 16,
-    lifetime: [1.5, 2.5],
-    speed: [0.8, 2.2],
+    name: `${name}_VFX`,
+    parentPart: `${name}_Core`,
+    rate: 22,
+    lifetime: [0.6, 1.2],
+    speed: [1.5, 3.2],
     lightEmission: 0.95,
     lightInfluence: 0.05
   });
 
-  // Main Cobblestone Avenues (Width 12 studs)
-  // North Avenue to Matchmaking Portal (Z = -22 to -50)
+  return items;
+}
+
+// -----------------------------------------------------------------------------
+// 1. URBAN CITADEL PAVEMENT & CENTRAL PLAZA
+// -----------------------------------------------------------------------------
+function buildUrbanPavement() {
+  const parts = [];
+
+  // Rolling Green Forest Bed extending far beyond the walls
   parts.push({
-    name: 'Path_North_Portal',
+    name: 'Forest_Grass_Foundation',
     className: 'Part',
-    position: [0, 0.15, -36],
-    size: [12, 0.4, 28],
-    material: 'Cobblestone',
-    color: C.stoneCobble,
+    position: [0, -0.6, -10],
+    size: [240, 0.6, 240],
+    material: 'Grass',
+    color: [52, 98, 45],
     anchored: true
   });
-  // East Avenue to Crates Vault (X = 22 to 45)
+
+  // Main Cobblestone Avenue & Courtyard (Continuous Solid Foundation, no floating gaps)
+  // Covers X = -55 to +55, Z = -65 to +45
   parts.push({
-    name: 'Path_East_Crates',
+    name: 'Citadel_Plaza_Bed',
     className: 'Part',
-    position: [33.5, 0.15, 0],
-    size: [23, 0.4, 11],
+    position: [0, -0.2, -10],
+    size: [110, 0.8, 110],
     material: 'Cobblestone',
-    color: C.stoneCobble,
+    color: C.stoneStreet,
     anchored: true
   });
-  // West Avenue to Potion Shop (X = -22 to -45)
+
+  // Decorative Inner Court Pattern (Polished Slate Walkways)
+  // Main Central Spine leading from Spawns to Castle Gate
   parts.push({
-    name: 'Path_West_Potions',
+    name: 'Spine_North_South',
     className: 'Part',
-    position: [-33.5, 0.15, 0],
-    size: [23, 0.4, 11],
-    material: 'Cobblestone',
-    color: C.stoneCobble,
+    position: [0, 0.25, -10],
+    size: [16, 0.2, 108],
+    material: 'Slate',
+    color: C.stoneSlate,
     anchored: true
   });
-  // South-East Path to Dueling Range
+
+  // Cross Promenade connecting East and West zones
   parts.push({
-    name: 'Path_SE_Dueling',
+    name: 'Promenade_East_West',
     className: 'Part',
-    position: [24, 0.15, 24],
-    size: [10, 0.4, 22],
-    material: 'Cobblestone',
-    color: C.stoneCobble,
+    position: [0, 0.25, 2],
+    size: [106, 0.2, 16],
+    material: 'Slate',
+    color: C.stoneSlate,
     anchored: true
   });
-  // South-West Path to Elf Forge
+
+  // Stone curbs and raised sidewalk platforms for shops
+  // West Sidewalk (Apothecary & Smithy)
   parts.push({
-    name: 'Path_SW_Forge',
+    name: 'Sidewalk_West',
     className: 'Part',
-    position: [-24, 0.15, 24],
-    size: [10, 0.4, 22],
+    position: [-32, 0.5, -5],
+    size: [30, 0.6, 75],
     material: 'Cobblestone',
-    color: C.stoneCobble,
+    color: C.stoneCurb,
     anchored: true
+  });
+
+  // East Sidewalk (Vault & Dueling Colosseum)
+  parts.push({
+    name: 'Sidewalk_East',
+    className: 'Part',
+    position: [32, 0.5, -5],
+    size: [30, 0.6, 75],
+    material: 'Cobblestone',
+    color: C.stoneCurb,
+    anchored: true
+  });
+
+  // ---------------------------------------------------------------------------
+  // Central Plaza: Grand Enchanted Hearth & Obelisk Monument
+  // ---------------------------------------------------------------------------
+  // Octagonal stone ring for central hearth
+  const hx = 0, hz = 2;
+  parts.push({
+    name: 'Hearth_Ring_Base',
+    className: 'Part',
+    position: [hx, 0.6, hz],
+    size: [10, 0.6, 10],
+    material: 'Slate',
+    color: C.stoneWallDark,
+    anchored: true
+  });
+  parts.push({
+    name: 'Hearth_Firepit_Bed',
+    className: 'Part',
+    position: [hx, 0.95, hz],
+    size: [7.5, 0.3, 7.5],
+    material: 'Basalt',
+    color: [30, 28, 26],
+    anchored: true
+  });
+
+  // Charred Firewood Logs
+  parts.push({
+    name: 'Hearth_Log_1',
+    className: 'Part',
+    position: [hx, 1.4, hz],
+    size: [5.2, 0.8, 1.2],
+    material: 'Wood',
+    color: [45, 30, 20],
+    anchored: true
+  });
+  parts.push({
+    name: 'Hearth_Log_2',
+    className: 'Part',
+    position: [hx, 1.4, hz],
+    size: [1.2, 0.8, 5.2],
+    material: 'Wood',
+    color: [45, 30, 20],
+    anchored: true
+  });
+  parts.push({
+    name: 'Hearth_Log_Diag1',
+    className: 'Part',
+    position: [hx, 1.8, hz],
+    size: [4.4, 0.7, 1.1],
+    cframeRotation: [0, 45, 12],
+    material: 'Wood',
+    color: [40, 26, 16],
+    anchored: true
+  });
+
+  // Roaring Communal Flame Core
+  parts.push({
+    name: 'Hearth_FlameCore',
+    className: 'Part',
+    position: [hx, 2.2, hz],
+    size: [2.2, 2.0, 2.2],
+    material: 'Neon',
+    color: C.flameCore,
+    anchored: true
+  });
+  parts.push({
+    className: 'PointLight',
+    name: 'Hearth_GrandLight',
+    parentPart: 'Hearth_FlameCore',
+    color: [255, 195, 100],
+    brightness: 3.5,
+    range: 36,
+    shadows: true
+  });
+  parts.push({
+    className: 'ParticleEmitter',
+    name: 'Hearth_SmokeAndEmbers',
+    parentPart: 'Hearth_FlameCore',
+    rate: 35,
+    lifetime: [1.2, 2.8],
+    speed: [2.0, 5.5],
+    lightEmission: 0.95,
+    lightInfluence: 0.05
+  });
+
+  // Plaza Stone Benches for weary wizards
+  const benchPositions = [
+    [-8, 0.9, hz, 0],
+    [8, 0.9, hz, 0],
+    [0, 0.9, hz - 8, 90],
+    [0, 0.9, hz + 8, 90]
+  ];
+  benchPositions.forEach(([bx, by, bz, rot], idx) => {
+    parts.push({
+      name: `Plaza_Bench_${idx}_Seat`,
+      className: 'Part',
+      position: [bx, by, bz],
+      size: rot === 0 ? [1.8, 0.4, 5.5] : [5.5, 0.4, 1.8],
+      material: 'Slate',
+      color: C.stoneSlate,
+      anchored: true
+    });
+    // Bench Legs
+    const offset = 2.0;
+    const leg1Pos = rot === 0 ? [bx, by - 0.4, bz - offset] : [bx - offset, by - 0.4, bz];
+    const leg2Pos = rot === 0 ? [bx, by - 0.4, bz + offset] : [bx + offset, by - 0.4, bz];
+    parts.push({
+      name: `Plaza_Bench_${idx}_Leg1`,
+      className: 'Part',
+      position: leg1Pos,
+      size: [1.4, 0.6, 1.4],
+      material: 'Slate',
+      color: C.stoneWallDark,
+      anchored: true
+    });
+    parts.push({
+      name: `Plaza_Bench_${idx}_Leg2`,
+      className: 'Part',
+      position: leg2Pos,
+      size: [1.4, 0.6, 1.4],
+      material: 'Slate',
+      color: C.stoneWallDark,
+      anchored: true
+    });
   });
 
   return parts;
 }
 
 // -----------------------------------------------------------------------------
-// 2. ZONE 1: MATCHMAKING PORTAL & CASTLE GATE (NORTH)
+// 2. ZONE 1 (NORTH): GRAND CASTLE GATEHOUSE & CELESTIAL PORTAL
 // -----------------------------------------------------------------------------
-function buildZone1Matchmaking() {
+function buildZone1CastlePortal() {
   const parts = [];
-  const cx = 0, cz = -52;
+  const cx = 0, cz = -54;
 
-  // Elevated Stone Dais Steps
+  // Massive Gatehouse Sillería Foundation
   parts.push({
-    name: 'Portal_Step_1',
+    name: 'Gatehouse_Dais_Step1',
     className: 'Part',
-    position: [cx, 0.4, cz + 6],
-    size: [24, 0.6, 6],
+    position: [cx, 0.6, cz + 10],
+    size: [32, 0.8, 6],
     material: 'Slate',
     color: C.stoneSlate,
     anchored: true
   });
   parts.push({
-    name: 'Portal_Step_2',
+    name: 'Gatehouse_Dais_Step2',
     className: 'Part',
-    position: [cx, 0.9, cz + 2],
-    size: [22, 0.6, 6],
+    position: [cx, 1.3, cz + 6],
+    size: [28, 0.8, 6],
+    material: 'Slate',
+    color: C.stoneWallDark,
+    anchored: true
+  });
+  parts.push({
+    name: 'Gatehouse_Dais_Main',
+    className: 'Part',
+    position: [cx, 2.0, cz - 2],
+    size: [28, 0.8, 14],
     material: 'Cobblestone',
-    color: C.stoneCobble,
-    anchored: true
-  });
-  parts.push({
-    name: 'Portal_Dais_Platform',
-    className: 'Part',
-    position: [cx, 1.4, cz - 4],
-    size: [22, 0.6, 12],
-    material: 'Slate',
-    color: C.stoneDark,
+    color: C.stoneStreet,
     anchored: true
   });
 
-  // Grand Gothic Stone Pillars
-  const pillarH = 18;
-  // Left Pillar
+  // ---------------------------------------------------------------------------
+  // Twin Norman Bastion Towers (Left: X = -14, Right: X = +14)
+  // Height: 38 studs!
+  // ---------------------------------------------------------------------------
+  const towerPositions = [-14, 14];
+  towerPositions.forEach((tx, i) => {
+    const side = i === 0 ? 'L' : 'R';
+
+    // Tower Plinth / Base
+    parts.push({
+      name: `CastleTower_${side}_Plinth`,
+      className: 'Part',
+      position: [tx, 3.5, cz],
+      size: [11, 6, 11],
+      material: 'Slate',
+      color: C.stoneWallDark,
+      anchored: true
+    });
+
+    // Main Tower Shaft
+    parts.push({
+      name: `CastleTower_${side}_Shaft`,
+      className: 'Part',
+      position: [tx, 16.5, cz],
+      size: [9.5, 20, 9.5],
+      material: 'Cobblestone',
+      color: C.stoneWallLight,
+      anchored: true
+    });
+
+    // Machicolations Corbel Belt
+    parts.push({
+      name: `CastleTower_${side}_Corbels`,
+      className: 'Part',
+      position: [tx, 27.5, cz],
+      size: [11.5, 2.5, 11.5],
+      material: 'Slate',
+      color: C.stoneWallDark,
+      anchored: true
+    });
+
+    // Parapet Wall Walk
+    parts.push({
+      name: `CastleTower_${side}_Parapet`,
+      className: 'Part',
+      position: [tx, 30.5, cz],
+      size: [11, 3.5, 11],
+      material: 'Slate',
+      color: C.stoneSlate,
+      anchored: true
+    });
+
+    // Crenels & Merlons (Corner battlements)
+    const corners = [
+      [-4.8, -4.8], [4.8, -4.8],
+      [-4.8, 4.8], [4.8, 4.8]
+    ];
+    corners.forEach(([ox, oz], cIdx) => {
+      parts.push({
+        name: `CastleTower_${side}_Merlon_${cIdx}`,
+        className: 'Part',
+        position: [tx + ox, 33.2, cz + oz],
+        size: [2.0, 2.2, 2.0],
+        material: 'Slate',
+        color: C.stoneWallDark,
+        anchored: true
+      });
+    });
+
+    // Conical Slate Spire Roof
+    parts.push({
+      name: `CastleTower_${side}_Roof_Tier1`,
+      className: 'Part',
+      position: [tx, 34.0, cz],
+      size: [9.8, 2.5, 9.8],
+      material: 'Slate',
+      color: C.roofSlateBlue,
+      anchored: true
+    });
+    parts.push({
+      name: `CastleTower_${side}_Roof_Tier2`,
+      className: 'Part',
+      position: [tx, 37.0, cz],
+      size: [7.2, 3.5, 7.2],
+      material: 'Slate',
+      color: C.roofSlateBlue,
+      anchored: true
+    });
+    parts.push({
+      name: `CastleTower_${side}_Roof_Tier3`,
+      className: 'Part',
+      position: [tx, 40.5, cz],
+      size: [4.4, 3.5, 4.4],
+      material: 'Slate',
+      color: C.roofSlateBlue,
+      anchored: true
+    });
+    parts.push({
+      name: `CastleTower_${side}_Roof_Spire`,
+      className: 'Part',
+      position: [tx, 44.0, cz],
+      size: [1.6, 4.0, 1.6],
+      material: 'Metal',
+      color: C.goldRoyal,
+      anchored: true
+    });
+
+    // Tower Aspilleras (Arrow loop slits)
+    parts.push({
+      name: `CastleTower_${side}_Slit1`,
+      className: 'Part',
+      position: [tx, 14, cz + 4.8],
+      size: [1.2, 4.5, 0.4],
+      material: 'Metal',
+      color: [15, 15, 18],
+      anchored: true
+    });
+    parts.push({
+      name: `CastleTower_${side}_Slit2`,
+      className: 'Part',
+      position: [tx, 22, cz + 4.8],
+      size: [1.2, 4.5, 0.4],
+      material: 'Metal',
+      color: [15, 15, 18],
+      anchored: true
+    });
+
+    // Medieval House Banners (Hogwarts Colors)
+    const bannerColor = i === 0 ? [150, 25, 30] : [20, 105, 55]; // Gryffindor crimson / Slytherin emerald
+    const bannerTrim = i === 0 ? C.goldRoyal : C.silverSteel;
+    parts.push({
+      name: `CastleTower_${side}_BannerPole`,
+      className: 'Part',
+      position: [tx, 22, cz + 5.2],
+      size: [4.2, 0.3, 0.3],
+      material: 'Metal',
+      color: C.ironBlack,
+      anchored: true
+    });
+    parts.push({
+      name: `CastleTower_${side}_BannerFabric`,
+      className: 'Part',
+      position: [tx, 17, cz + 5.3],
+      size: [3.4, 9.5, 0.2],
+      material: 'Fabric',
+      color: bannerColor,
+      anchored: true
+    });
+    parts.push({
+      name: `CastleTower_${side}_BannerTrim`,
+      className: 'Part',
+      position: [tx, 12, cz + 5.35],
+      size: [2.6, 0.6, 0.25],
+      material: 'Neon',
+      color: bannerTrim,
+      anchored: true
+    });
+
+    // Wall-mounted torches on towers
+    parts.push(...createWallTorch(`TowerTorch_${side}`, [tx + (i === 0 ? 5.2 : -5.2), 9, cz + 4.5], [i === 0 ? 0.4 : -0.4, 0, 1]));
+  });
+
+  // ---------------------------------------------------------------------------
+  // Central Great Curtain Archway & Wall-Walk Bridge
+  // ---------------------------------------------------------------------------
+  // Wall-Walk Bridge above the arch (connects left and right towers)
   parts.push({
-    name: 'Arch_Pillar_L_Base',
+    name: 'Gate_WallWalk_Slab',
     className: 'Part',
-    position: [cx - 7.5, 2.6, cz - 4],
-    size: [3.4, 1.8, 3.4],
+    position: [cx, 22.5, cz],
+    size: [18.5, 2.5, 7.5],
     material: 'Slate',
     color: C.stoneSlate,
     anchored: true
   });
   parts.push({
-    name: 'Arch_Pillar_L_Shaft',
+    name: 'Gate_WallWalk_Battlement',
     className: 'Part',
-    position: [cx - 7.5, 2.6 + pillarH / 2, cz - 4],
-    size: [2.6, pillarH, 2.6],
+    position: [cx, 25.0, cz + 3.2],
+    size: [18.5, 2.8, 1.2],
     material: 'Cobblestone',
-    color: C.stoneCobble,
+    color: C.stoneWallLight,
+    anchored: true
+  });
+
+  // Heavy Stone Archway Jambs
+  parts.push({
+    name: 'Gate_Arch_Jamb_L',
+    className: 'Part',
+    position: [cx - 7.5, 11, cz - 1],
+    size: [3.2, 18, 5.5],
+    material: 'Slate',
+    color: C.stoneWallDark,
     anchored: true
   });
   parts.push({
-    name: 'Arch_Pillar_L_Capital',
+    name: 'Gate_Arch_Jamb_R',
     className: 'Part',
-    position: [cx - 7.5, 2.6 + pillarH + 0.8, cz - 4],
-    size: [3.4, 1.6, 3.4],
+    position: [cx + 7.5, 11, cz - 1],
+    size: [3.2, 18, 5.5],
+    material: 'Slate',
+    color: C.stoneWallDark,
+    anchored: true
+  });
+  // Arch Header / Keystones
+  parts.push({
+    name: 'Gate_Arch_KeystoneLintel',
+    className: 'Part',
+    position: [cx, 19.5, cz - 1],
+    size: [14.0, 3.2, 5.8],
     material: 'Slate',
     color: C.stoneSlate,
     anchored: true
   });
-
-  // Right Pillar
   parts.push({
-    name: 'Arch_Pillar_R_Base',
+    name: 'Gate_Arch_SpandrelPeak',
     className: 'Part',
-    position: [cx + 7.5, 2.6, cz - 4],
-    size: [3.4, 1.8, 3.4],
+    position: [cx, 21.2, cz - 0.8],
+    size: [3.5, 1.8, 6.2],
     material: 'Slate',
-    color: C.stoneSlate,
-    anchored: true
-  });
-  parts.push({
-    name: 'Arch_Pillar_R_Shaft',
-    className: 'Part',
-    position: [cx + 7.5, 2.6 + pillarH / 2, cz - 4],
-    size: [2.6, pillarH, 2.6],
-    material: 'Cobblestone',
-    color: C.stoneCobble,
-    anchored: true
-  });
-  parts.push({
-    name: 'Arch_Pillar_R_Capital',
-    className: 'Part',
-    position: [cx + 7.5, 2.6 + pillarH + 0.8, cz - 4],
-    size: [3.4, 1.6, 3.4],
-    material: 'Slate',
-    color: C.stoneSlate,
+    color: C.stoneWallDark,
     anchored: true
   });
 
-  // Arch Crossbeam & Keystone
+  // Raised Iron Portcullis Spikes
   parts.push({
-    name: 'Arch_Lintel',
+    name: 'Portcullis_Beam_Top',
     className: 'Part',
-    position: [cx, 2.6 + pillarH + 1.2, cz - 4],
-    size: [18.4, 2.4, 3.4],
-    material: 'Slate',
-    color: C.stoneDark,
+    position: [cx, 17.5, cz - 0.5],
+    size: [11.5, 0.8, 0.8],
+    material: 'Metal',
+    color: C.ironBlack,
     anchored: true
   });
-  parts.push({
-    name: 'Arch_Keystone',
-    className: 'Part',
-    position: [cx, 2.6 + pillarH + 3.0, cz - 4],
-    size: [4.4, 2.8, 3.8],
-    material: 'Cobblestone',
-    color: C.stoneLight,
-    anchored: true
-  });
+  const barCount = 7;
+  for (let b = 0; b < barCount; b++) {
+    const bx = cx - 5.0 + b * (10.0 / (barCount - 1));
+    parts.push({
+      name: `Portcullis_Bar_${b}`,
+      className: 'Part',
+      position: [bx, 15.0, cz - 0.5],
+      size: [0.35, 5.0, 0.35],
+      material: 'Metal',
+      color: C.ironBlack,
+      anchored: true
+    });
+  }
 
-  // Swirling Celestial Portal Core
+  // ---------------------------------------------------------------------------
+  // THE CELESTIAL ARCANE PORTAL (Matchmaking Gateway)
+  // ---------------------------------------------------------------------------
+  // Runic Teleport Dais on the floor
   parts.push({
-    name: 'Portal_Core',
+    name: 'Portal_RuneCircle_Base',
     className: 'Part',
-    shape: 'Ball',
-    position: [cx, 11.5, cz - 4],
-    size: [9.5, 9.5, 3.0],
-    material: 'Glass',
-    transparency: 0.3,
-    color: C.magicBlue,
+    position: [cx, 2.5, cz - 1.5],
+    size: [10.5, 0.3, 10.5],
+    material: 'Slate',
+    color: [35, 38, 45],
     anchored: true
   });
   parts.push({
-    name: 'Portal_RuneRing',
+    name: 'Portal_RuneCircle_Glow',
     className: 'Part',
-    position: [cx, 11.5, cz - 3.8],
-    size: [11, 11, 0.4],
+    position: [cx, 2.7, cz - 1.5],
+    size: [9.0, 0.15, 9.0],
     material: 'Neon',
-    transparency: 0.7,
     color: C.magicCyan,
     anchored: true
   });
-  // Arcane Portal Lighting & Swirling Particles
+
+  // Main Swirling Arcane Vortex Core
   parts.push({
-    className: 'PointLight',
-    name: 'Portal_Glow',
-    parentPart: 'Portal_Core',
+    name: 'Zone1_Matchmaking_PortalCore',
+    className: 'Part',
+    position: [cx, 10.5, cz - 2.5],
+    size: [10.5, 14.5, 0.6],
+    material: 'Neon',
     color: C.magicBlue,
-    brightness: 2.8,
-    range: 35,
-    shadows: true
+    transparency: 0.3,
+    anchored: true
   });
+
+  // Concentric Inner Mystic Ring
+  parts.push({
+    name: 'Portal_InnerVortex',
+    className: 'Part',
+    position: [cx, 10.5, cz - 2.3],
+    size: [7.5, 11.5, 0.6],
+    material: 'Neon',
+    color: C.magicCyan,
+    transparency: 0.45,
+    anchored: true
+  });
+
+  // Dynamic Cyan & Star Particle Emitters
   parts.push({
     className: 'ParticleEmitter',
-    name: 'Portal_VortexParticles',
-    parentPart: 'Portal_Core',
+    name: 'Portal_CelestialSwirl',
+    parentPart: 'Zone1_Matchmaking_PortalCore',
     rate: 45,
-    lifetime: [1.5, 2.8],
-    speed: [2, 5],
+    lifetime: [1.2, 2.6],
+    speed: [2.5, 5.5],
     lightEmission: 1.0,
     lightInfluence: 0.0
   });
 
-  // Matchmaking Queue Activation Pad
+  // Powerful Arcane Light Casting Through Gate
   parts.push({
-    name: 'Portal_Queue_Pad',
-    className: 'Part',
-    position: [cx, 1.5, cz + 1],
-    size: [6.5, 0.2, 6.5],
-    material: 'Neon',
-    transparency: 0.6,
-    color: C.magicCyan,
-    anchored: true
+    className: 'PointLight',
+    name: 'Portal_ArcaneLight',
+    parentPart: 'Zone1_Matchmaking_PortalCore',
+    color: [85, 185, 255],
+    brightness: 3.8,
+    range: 34,
+    shadows: true
   });
 
-  // Two Great Stone Fire Braziers flanking the Dais
-  parts.push(...createBonfire('Portal_Brazier_L', [cx - 12, 0.4, cz + 2]));
-  parts.push(...createBonfire('Portal_Brazier_R', [cx + 12, 0.4, cz + 2]));
+  // Flanking Monumental Fire Braziers
+  const brazierOffsets = [-7.8, 7.8];
+  brazierOffsets.forEach((bx, idx) => {
+    parts.push(...createFreeTorch(`GateBrazier_${idx}`, [cx + bx, 2.4, cz + 4.5]));
+  });
 
   return parts;
 }
 
 // -----------------------------------------------------------------------------
-// 3. CASTLE KEEP TOWERS & CURTAIN WALL
+// 3. ZONE 2 (EAST): THE GRINGOTTS ARCANE VAULT (CRATES & KEYS)
 // -----------------------------------------------------------------------------
-function buildCastleWalls() {
+function buildZone2CratesVault() {
   const parts = [];
-  const cz = -66;
+  const vx = 32, vz = -5;
 
-  // Function to build a square keep tower
-  function buildTower(name, tx, tz) {
-    const tw = 12, th = 32;
-    // Main Tower Body
-    parts.push({
-      name: `${name}_Body`,
-      className: 'Part',
-      position: [tx, th / 2, tz],
-      size: [tw, th, tw],
-      material: 'Cobblestone',
-      color: C.stoneCobble,
-      anchored: true
-    });
-    // Tower Belt / Cornice
-    parts.push({
-      name: `${name}_Cornice`,
-      className: 'Part',
-      position: [tx, th + 0.8, tz],
-      size: [tw + 2, 1.6, tw + 2],
-      material: 'Slate',
-      color: C.stoneSlate,
-      anchored: true
-    });
-    // Tower Parapet Crenellations
-    for (let ox of [-tw / 2, 0, tw / 2]) {
-      for (let oz of [-tw / 2, tw / 2]) {
-        parts.push({
-          name: `${name}_Crenel_${ox}_${oz}`,
-          className: 'Part',
-          position: [tx + ox, th + 2.4, tz + oz],
-          size: [2.5, 2.2, 2.5],
-          material: 'Cobblestone',
-          color: C.stoneCobble,
-          anchored: true
-        });
-      }
-    }
-    // Blue Shingle Spire Roof
-    parts.push({
-      name: `${name}_Spire_Base`,
-      className: 'Part',
-      position: [tx, th + 4.5, tz],
-      size: [tw - 1, 4.0, tw - 1],
-      material: 'WoodPlanks',
-      color: C.roofShingleBlue,
-      anchored: true
-    });
-    parts.push({
-      name: `${name}_Spire_Top`,
-      className: 'Part',
-      position: [tx, th + 8.5, tz],
-      size: [tw - 5, 4.5, tw - 5],
-      material: 'WoodPlanks',
-      color: C.roofShingleBlue,
-      anchored: true
-    });
-  }
-
-  // Left Castle Tower
-  buildTower('Castle_Tower_L', -24, cz);
-  // Right Castle Tower
-  buildTower('Castle_Tower_R', 24, cz);
-
-  // Connecting Curtain Wall
+  // Raised Vault Terrace Podium
   parts.push({
-    name: 'Castle_Curtain_Wall',
+    name: 'Vault_Terrace_Plinth',
     className: 'Part',
-    position: [0, 11, cz],
-    size: [36, 22, 5],
+    position: [vx, 1.2, vz],
+    size: [24, 1.4, 26],
+    material: 'Slate',
+    color: C.stoneWallDark,
+    anchored: true
+  });
+  parts.push({
+    name: 'Vault_Terrace_Floor',
+    className: 'Part',
+    position: [vx, 2.0, vz],
+    size: [22, 0.4, 24],
+    material: 'Marble',
+    color: C.stoneMarble,
+    anchored: true
+  });
+
+  // Terrace Entry Stairs facing West towards Plaza
+  parts.push({
+    name: 'Vault_Stairs_Step1',
+    className: 'Part',
+    position: [vx - 12, 0.6, vz],
+    size: [2.4, 0.6, 16],
+    material: 'Slate',
+    color: C.stoneSlate,
+    anchored: true
+  });
+  parts.push({
+    name: 'Vault_Stairs_Step2',
+    className: 'Part',
+    position: [vx - 10, 1.2, vz],
+    size: [2.4, 0.6, 16],
+    material: 'Slate',
+    color: C.stoneSlate,
+    anchored: true
+  });
+
+  // Back Solid Vault Wall & Portico
+  parts.push({
+    name: 'Vault_BackWall',
+    className: 'Part',
+    position: [vx + 10, 10.5, vz],
+    size: [3.5, 17, 24],
+    material: 'Slate',
+    color: C.stoneWallLight,
+    anchored: true
+  });
+  parts.push({
+    name: 'Vault_SideWall_North',
+    className: 'Part',
+    position: [vx, 10.5, vz - 11],
+    size: [22, 17, 2.5],
     material: 'Cobblestone',
-    color: C.stoneCobble,
+    color: C.stoneWallLight,
     anchored: true
   });
   parts.push({
-    name: 'Castle_Wall_Cornice',
+    name: 'Vault_SideWall_South',
     className: 'Part',
-    position: [0, 22.8, cz],
-    size: [38, 1.4, 6.2],
-    material: 'Slate',
-    color: C.stoneSlate,
-    anchored: true
-  });
-  // Crenels on wall
-  for (let x = -14; x <= 14; x += 7) {
-    parts.push({
-      name: `Castle_Wall_Crenel_${x}`,
-      className: 'Part',
-      position: [x, 24.5, cz],
-      size: [3.2, 2.2, 6.2],
-      material: 'Cobblestone',
-      color: C.stoneCobble,
-      anchored: true
-    });
-  }
-
-  return parts;
-}
-
-// -----------------------------------------------------------------------------
-// 4. ZONE 2: CRATES & KEY VAULT (EAST)
-// -----------------------------------------------------------------------------
-function buildZone2Crates() {
-  const parts = [];
-  const vx = 48, vz = 0;
-
-  // Vault Floor
-  parts.push({
-    name: 'Vault_Floor',
-    className: 'Part',
-    position: [vx, 0.4, vz],
-    size: [22, 0.8, 20],
-    material: 'Slate',
-    color: C.stoneSlate,
+    position: [vx, 10.5, vz + 11],
+    size: [22, 17, 2.5],
+    material: 'Cobblestone',
+    color: C.stoneWallLight,
     anchored: true
   });
 
-  // 4 Stately Stone Pillars
-  const pillars = [
-    [vx - 9, vz - 8],
-    [vx + 9, vz - 8],
-    [vx - 9, vz + 8],
-    [vx + 9, vz + 8]
-  ];
-  pillars.forEach(([px, pz], i) => {
+  // Imposing Classical Stone Columns (Facing West)
+  const colZ = [vz - 8, vz - 2.8, vz + 2.8, vz + 8];
+  colZ.forEach((czPos, idx) => {
+    // Column Base
     parts.push({
-      name: `Vault_Pillar_${i}`,
+      name: `Vault_Col_${idx}_Base`,
       className: 'Part',
-      position: [px, 6.5, pz],
-      size: [2.2, 12, 2.2],
-      material: 'Cobblestone',
-      color: C.stoneCobble,
-      anchored: true
-    });
-    parts.push({
-      name: `Vault_PillarCap_${i}`,
-      className: 'Part',
-      position: [px, 12.8, pz],
-      size: [3.0, 1.2, 3.0],
+      position: [vx - 8.5, 2.8, czPos],
+      size: [2.2, 1.2, 2.2],
       material: 'Slate',
-      color: C.stoneSlate,
+      color: C.stoneWallDark,
+      anchored: true
+    });
+    // Fluted Column Shaft
+    parts.push({
+      name: `Vault_Col_${idx}_Shaft`,
+      className: 'Part',
+      position: [vx - 8.5, 9.5, czPos],
+      size: [1.7, 12.5, 1.7],
+      material: 'Marble',
+      color: C.stoneMarble,
+      anchored: true
+    });
+    // Capital
+    parts.push({
+      name: `Vault_Col_${idx}_Capital`,
+      className: 'Part',
+      position: [vx - 8.5, 16.2, czPos],
+      size: [2.2, 1.0, 2.2],
+      material: 'Slate',
+      color: C.stoneWallDark,
       anchored: true
     });
   });
 
-  // Vault Timber Rafters & Roof
+  // Classical Entablature & Pediment Cornice
   parts.push({
-    name: 'Vault_Roof_Beam',
+    name: 'Vault_Entablature',
     className: 'Part',
-    position: [vx, 13.5, vz],
-    size: [22, 1.4, 20],
-    material: 'Wood',
-    color: C.woodDark,
+    position: [vx - 8.5, 17.5, vz],
+    size: [3.0, 1.6, 24],
+    material: 'Slate',
+    color: C.stoneSlate,
     anchored: true
   });
+  // Triangular Pediment Front
   parts.push({
-    name: 'Vault_Roof_Slant',
+    name: 'Vault_Pediment_Peak',
     className: 'Part',
-    position: [vx, 15.8, vz],
-    size: [20, 3.5, 18],
-    material: 'WoodPlanks',
-    color: C.roofShingleRed,
+    position: [vx - 8.5, 20.0, vz],
+    size: [2.8, 3.5, 14],
+    material: 'Slate',
+    color: C.stoneWallDark,
+    anchored: true
+  });
+  // Vault Roof Slab
+  parts.push({
+    name: 'Vault_Roof_Slab',
+    className: 'Part',
+    position: [vx + 1, 19.5, vz],
+    size: [21, 1.5, 25],
+    material: 'Slate',
+    color: C.roofLeadDark,
     anchored: true
   });
 
-  // 3 Pedestals with Detailed Chests & Floating Keys
+  // Giant Iron Vault Door Inset on Back Wall
+  parts.push({
+    name: 'Vault_Door_Frame',
+    className: 'Part',
+    position: [vx + 8.0, 7.5, vz],
+    size: [1.2, 10.5, 9.5],
+    material: 'Metal',
+    color: C.ironBlack,
+    anchored: true
+  });
+  parts.push({
+    name: 'Vault_Door_Panel',
+    className: 'Part',
+    position: [vx + 8.2, 7.5, vz],
+    size: [0.8, 9.5, 8.5],
+    material: 'Metal',
+    color: [30, 32, 36],
+    anchored: true
+  });
+  // Brass Vault Locking Wheel
+  parts.push({
+    name: 'Vault_Door_WheelHub',
+    className: 'Part',
+    position: [vx + 7.6, 7.5, vz],
+    size: [0.6, 2.2, 2.2],
+    material: 'Metal',
+    color: C.goldRoyal,
+    anchored: true
+  });
+
+  // ---------------------------------------------------------------------------
+  // 3 CRATE PEDESTALS & TIERED CHESTS
+  // ---------------------------------------------------------------------------
   const chestData = [
-    { name: 'Common', offZ: -5, color: C.woodPlank, keyColor: C.magicBlue, keyGlow: [75, 165, 255] },
-    { name: 'Ancient', offZ: 0, color: C.ironDark, keyColor: C.magicPurple, keyGlow: [175, 85, 245] },
-    { name: 'RelicGold', offZ: 5, color: C.goldTrim, keyColor: C.magicGold, keyGlow: [255, 220, 85] }
+    {
+      tier: 'Common',
+      name: 'Zone2_Crate_Common',
+      label: 'Cofre de Roble Antiguo',
+      offsetZ: -6.5,
+      woodColor: C.woodPlankWarm,
+      trimColor: C.bronzeTrim,
+      keyColor: C.bronzeTrim,
+      lightColor: [220, 160, 80],
+      glowNeon: false
+    },
+    {
+      tier: 'Rare',
+      name: 'Zone2_Crate_Rare',
+      label: 'Bóveda de Hierro Rúnico',
+      offsetZ: 0,
+      woodColor: [50, 52, 58],
+      trimColor: C.silverSteel,
+      keyColor: C.magicCyan,
+      lightColor: [80, 200, 255],
+      glowNeon: true
+    },
+    {
+      tier: 'Legendary',
+      name: 'Zone2_Crate_Legendary',
+      label: 'Reliquia Real Arcana',
+      offsetZ: 6.5,
+      woodColor: [80, 25, 25],
+      trimColor: C.goldRoyal,
+      keyColor: C.magicGold,
+      lightColor: [255, 215, 60],
+      glowNeon: true
+    }
   ];
 
-  chestData.forEach((cd) => {
-    const cx = vx + 2, cz = vz + cd.offZ;
+  chestData.forEach(cd => {
+    const px = vx - 1.0;
+    const pz = vz + cd.offsetZ;
 
-    // Stone Pedestal
+    // Polished Stone Pedestal
     parts.push({
-      name: `Crate_Pedestal_${cd.name}`,
+      name: `${cd.name}_Pedestal_Base`,
       className: 'Part',
-      position: [cx, 1.5, cz],
-      size: [3.8, 1.8, 3.2],
+      position: [px, 2.7, pz],
+      size: [4.4, 1.0, 4.4],
       material: 'Slate',
-      color: C.stoneDark,
+      color: C.stoneWallDark,
+      anchored: true
+    });
+    parts.push({
+      name: `${cd.name}_Pedestal_Cap`,
+      className: 'Part',
+      position: [px, 3.5, pz],
+      size: [3.8, 0.6, 3.8],
+      material: 'Marble',
+      color: C.stoneMarble,
       anchored: true
     });
 
-    // Chest Body
+    // Medieval Chest Body
     parts.push({
-      name: `Crate_Body_${cd.name}`,
+      name: `${cd.name}_ChestBody`,
       className: 'Part',
-      position: [cx, 2.9, cz],
-      size: [2.8, 1.4, 2.0],
-      material: 'WoodPlanks',
-      color: cd.color,
+      position: [px, 4.6, pz],
+      size: [2.6, 1.6, 3.2],
+      material: 'Wood',
+      color: cd.woodColor,
       anchored: true
     });
-    // Chest Lid
+    // Curved/Beveled Chest Lid
     parts.push({
-      name: `Crate_Lid_${cd.name}`,
+      name: `${cd.name}_ChestLid`,
       className: 'Part',
-      position: [cx, 3.8, cz],
-      size: [3.0, 0.6, 2.2],
-      material: 'Metal',
-      color: cd.color,
+      position: [px, 5.7, pz],
+      size: [2.8, 0.7, 3.4],
+      material: 'Wood',
+      color: cd.woodColor,
       anchored: true
     });
-    // Chest Lock
+    // Metal Straps & Lock
     parts.push({
-      name: `Crate_Lock_${cd.name}`,
+      name: `${cd.name}_LockHasp`,
       className: 'Part',
-      position: [cx - 1.45, 3.3, cz],
-      size: [0.2, 0.6, 0.5],
+      position: [px - 1.35, 5.0, pz],
+      size: [0.2, 0.8, 0.6],
       material: 'Metal',
-      color: C.goldTrim,
+      color: cd.trimColor,
       anchored: true
     });
 
-    // Floating Magical Key Orb
+    // FLOATING 3D MAGICAL KEY (Levitating & Glowing above Chest)
+    const keyY = 7.6;
     parts.push({
-      name: `Crate_KeyOrb_${cd.name}`,
+      name: `${cd.name}_MagicKey_Shaft`,
       className: 'Part',
-      shape: 'Ball',
-      position: [cx, 5.8, cz],
-      size: [1.2, 1.2, 1.2],
-      material: 'Neon',
-      transparency: 0.15,
+      position: [px, keyY, pz],
+      size: [0.2, 1.4, 0.2],
+      material: cd.glowNeon ? 'Neon' : 'Metal',
       color: cd.keyColor,
       anchored: true
     });
-    // Key Glow & Sparkles
+    parts.push({
+      name: `${cd.name}_MagicKey_Handle`,
+      className: 'Part',
+      position: [px, keyY + 0.8, pz],
+      size: [0.2, 0.6, 0.6],
+      material: cd.glowNeon ? 'Neon' : 'Metal',
+      color: cd.keyColor,
+      anchored: true
+    });
+    parts.push({
+      name: `${cd.name}_MagicKey_Bit`,
+      className: 'Part',
+      position: [px, keyY - 0.4, pz + 0.25],
+      size: [0.2, 0.4, 0.35],
+      material: cd.glowNeon ? 'Neon' : 'Metal',
+      color: cd.keyColor,
+      anchored: true
+    });
+
+    // Key Sparkle Aura & Light
     parts.push({
       className: 'PointLight',
-      name: `Crate_Light_${cd.name}`,
-      parentPart: `Crate_KeyOrb_${cd.name}`,
-      color: cd.keyGlow,
-      brightness: 2.2,
-      range: 16,
-      shadows: true
-    });
-    parts.push({
-      className: 'ParticleEmitter',
-      name: `Crate_KeySparkles_${cd.name}`,
-      parentPart: `Crate_KeyOrb_${cd.name}`,
-      rate: 14,
-      lifetime: [0.8, 1.6],
-      speed: [0.8, 2.0],
-      lightEmission: 0.95,
-      lightInfluence: 0.05
-    });
-  });
-
-  // Vault Torches
-  parts.push(...createTorch('Vault_Torch_1', [vx - 8.8, 4.5, vz - 7.5]));
-  parts.push(...createTorch('Vault_Torch_2', [vx - 8.8, 4.5, vz + 7.5]));
-
-  return parts;
-}
-
-// -----------------------------------------------------------------------------
-// 5. ZONE 3: POTIONS SHOP & APOTHECARY (WEST)
-// -----------------------------------------------------------------------------
-function buildZone3Potions() {
-  const parts = [];
-  const sx = -48, sz = 0;
-
-  // Cottage Foundation
-  parts.push({
-    name: 'PotionShop_Floor',
-    className: 'Part',
-    position: [sx, 0.4, sz],
-    size: [22, 0.8, 22],
-    material: 'Slate',
-    color: C.stoneSlate,
-    anchored: true
-  });
-
-  // Stone Lower Walls
-  parts.push({
-    name: 'PotionShop_Wall_Back',
-    className: 'Part',
-    position: [sx - 9, 6, sz],
-    size: [2, 11, 20],
-    material: 'Cobblestone',
-    color: C.stoneCobble,
-    anchored: true
-  });
-  parts.push({
-    name: 'PotionShop_Wall_N',
-    className: 'Part',
-    position: [sx, 6, sz - 9.5],
-    size: [18, 11, 2],
-    material: 'Cobblestone',
-    color: C.stoneCobble,
-    anchored: true
-  });
-  parts.push({
-    name: 'PotionShop_Wall_S',
-    className: 'Part',
-    position: [sx, 6, sz + 9.5],
-    size: [18, 11, 2],
-    material: 'Cobblestone',
-    color: C.stoneCobble,
-    anchored: true
-  });
-
-  // Timber Framing Corner Posts
-  for (let ox of [-9, 9]) {
-    for (let oz of [-9.5, 9.5]) {
-      parts.push({
-        name: `PotionShop_Timber_${ox}_${oz}`,
-        className: 'Part',
-        position: [sx + ox, 6.5, sz + oz],
-        size: [2.2, 12.5, 2.2],
-        material: 'Wood',
-        color: C.woodDark,
-        anchored: true
-      });
-    }
-  }
-
-  // Wooden Shop Counter
-  parts.push({
-    name: 'PotionShop_Counter_Base',
-    className: 'Part',
-    position: [sx + 6, 2.2, sz],
-    size: [2.2, 3.8, 14],
-    material: 'WoodPlanks',
-    color: C.woodPlank,
-    anchored: true
-  });
-  parts.push({
-    name: 'PotionShop_Counter_Top',
-    className: 'Part',
-    position: [sx + 6, 4.3, sz],
-    size: [3.2, 0.6, 15],
-    material: 'Wood',
-    color: C.woodDark,
-    anchored: true
-  });
-
-  // Slanted Gable Roof
-  parts.push({
-    name: 'PotionShop_Roof',
-    className: 'Part',
-    position: [sx, 14, sz],
-    size: [24, 4.5, 24],
-    material: 'WoodPlanks',
-    color: C.roofShingleSlate,
-    anchored: true
-  });
-
-  // Stone Chimney with Smoke
-  parts.push({
-    name: 'PotionShop_Chimney',
-    className: 'Part',
-    position: [sx - 7, 14, sz - 7],
-    size: [3.2, 12, 3.2],
-    material: 'Cobblestone',
-    color: C.stoneDark,
-    anchored: true
-  });
-  parts.push({
-    className: 'ParticleEmitter',
-    name: 'PotionShop_ChimneySmoke',
-    parentPart: 'PotionShop_Chimney',
-    rate: 10,
-    lifetime: [2.5, 4.5],
-    speed: [1.5, 3.5],
-    lightEmission: 0.3,
-    lightInfluence: 0.8
-  });
-
-  // Giant Bubbling Iron Cauldron
-  const cldX = sx + 2, cldZ = sz - 4;
-  parts.push({
-    name: 'Cauldron_Body',
-    className: 'Part',
-    position: [cldX, 2.2, cldZ],
-    size: [3.4, 2.8, 3.4],
-    material: 'Metal',
-    color: C.ironDark,
-    anchored: true
-  });
-  parts.push({
-    name: 'Cauldron_Liquid',
-    className: 'Part',
-    position: [cldX, 3.5, cldZ],
-    size: [3.0, 0.3, 3.0],
-    material: 'Glass',
-    transparency: 0.25,
-    color: C.potionGreen,
-    anchored: true
-  });
-  parts.push({
-    className: 'PointLight',
-    name: 'Cauldron_Glow',
-    parentPart: 'Cauldron_Liquid',
-    color: C.potionGreen,
-    brightness: 2.4,
-    range: 18,
-    shadows: true
-  });
-  parts.push({
-    className: 'ParticleEmitter',
-    name: 'Cauldron_Steam',
-    parentPart: 'Cauldron_Liquid',
-    rate: 20,
-    lifetime: [1.2, 2.5],
-    speed: [1.2, 2.8],
-    lightEmission: 0.85,
-    lightInfluence: 0.15
-  });
-
-  // 3 Shelves with 15 Colorful Potion Flasks
-  for (let lvl = 1; lvl <= 3; lvl++) {
-    const shelfY = 3.5 + lvl * 2.2;
-    parts.push({
-      name: `Potion_Shelf_${lvl}`,
-      className: 'Part',
-      position: [sx - 7.5, shelfY, sz],
-      size: [1.5, 0.4, 12],
-      material: 'Wood',
-      color: C.woodDark,
-      anchored: true
-    });
-
-    const flaskColors = [C.potionRed, C.potionBlue, C.potionGreen, C.potionPurple, C.fireYellow];
-    for (let f = 0; f < 5; f++) {
-      const fz = sz - 4.5 + f * 2.2;
-      parts.push({
-        name: `Flask_L${lvl}_${f}`,
-        className: 'Part',
-        shape: 'Ball',
-        position: [sx - 7.5, shelfY + 0.6, fz],
-        size: [0.85, 1.1, 0.85],
-        material: 'Glass',
-        transparency: 0.2,
-        color: flaskColors[f % flaskColors.length],
-        anchored: true
-      });
-      parts.push({
-        name: `Flask_Cork_L${lvl}_${f}`,
-        className: 'Part',
-        position: [sx - 7.5, shelfY + 1.25, fz],
-        size: [0.35, 0.35, 0.35],
-        material: 'Wood',
-        color: C.woodLight,
-        anchored: true
-      });
-    }
-  }
-
-  // Alchemy Scales & Parchment
-  parts.push({
-    name: 'Alchemy_Mortar',
-    className: 'Part',
-    position: [sx + 6, 4.9, sz + 3],
-    size: [1.0, 0.8, 1.0],
-    material: 'Slate',
-    color: C.stoneDark,
-    anchored: true
-  });
-  parts.push({
-    name: 'Alchemy_Scroll',
-    className: 'Part',
-    position: [sx + 6, 4.7, sz - 2],
-    size: [1.8, 0.15, 2.5],
-    material: 'SmoothPlastic',
-    color: [240, 225, 190],
-    anchored: true
-  });
-
-  // Wall Torches
-  parts.push(...createTorch('PotionShop_Torch_L', [sx + 7.8, 4.8, sz - 6], true));
-  parts.push(...createTorch('PotionShop_Torch_R', [sx + 7.8, 4.8, sz + 6], true));
-
-  return parts;
-}
-
-// -----------------------------------------------------------------------------
-// 6. ZONE 4: SPELL TESTING RANGE & COMBAT MANNEQUINS (SOUTH-EAST)
-// -----------------------------------------------------------------------------
-function buildZone4SpellRange() {
-  const parts = [];
-  const rx = 42, rz = 42;
-
-  // Sandy Training Floor
-  parts.push({
-    name: 'Dueling_Ring_Ground',
-    className: 'Part',
-    position: [rx, 0.2, rz],
-    size: [32, 0.4, 32],
-    material: 'Sand',
-    color: [185, 165, 130],
-    anchored: true
-  });
-  // Slate Rim
-  parts.push({
-    name: 'Dueling_Ring_Border',
-    className: 'Part',
-    position: [rx, 0.35, rz],
-    size: [34, 0.5, 34],
-    material: 'Slate',
-    color: C.stoneSlate,
-    anchored: true
-  });
-
-  // Arcane Center Circle
-  parts.push({
-    name: 'Dueling_Center_Glyph',
-    className: 'Part',
-    position: [rx, 0.42, rz],
-    size: [12, 0.1, 12],
-    material: 'Neon',
-    transparency: 0.7,
-    color: C.magicCyan,
-    anchored: true
-  });
-
-  // Wooden Split-Rail Perimeter Fence Posts
-  const fencePosts = [
-    [rx - 15, rz - 15], [rx, rz - 15], [rx + 15, rz - 15],
-    [rx + 15, rz], [rx + 15, rz + 15],
-    [rx, rz + 15], [rx - 15, rz + 15], [rx - 15, rz]
-  ];
-  fencePosts.forEach(([px, pz], i) => {
-    parts.push({
-      name: `Dueling_Post_${i}`,
-      className: 'Part',
-      position: [px, 2.2, pz],
-      size: [1.0, 4.0, 1.0],
-      material: 'Wood',
-      color: C.woodDark,
-      anchored: true
-    });
-  });
-
-  // 3 Wizard Training Mannequins
-  const dummies = [
-    { name: 'Dummy_Apprentice', x: rx - 6, z: rz + 4, robe: C.woodPlank, hat: C.roofShingleBlue },
-    { name: 'Dummy_BattleMage', x: rx + 1, z: rz + 7, robe: C.ironDark, hat: C.roofShingleRed },
-    { name: 'Dummy_ArchMage', x: rx + 7, z: rz + 3, robe: C.magicPurple, hat: C.stoneDark }
-  ];
-
-  dummies.forEach((d) => {
-    // Base Stand
-    parts.push({
-      name: `${d.name}_Base`,
-      className: 'Part',
-      position: [d.x, 0.4, d.z],
-      size: [2.5, 0.4, 2.5],
-      material: 'Wood',
-      color: C.woodDark,
-      anchored: true
-    });
-    // Spine
-    parts.push({
-      name: `${d.name}_Spine`,
-      className: 'Part',
-      position: [d.x, 3.2, d.z],
-      size: [0.8, 5.5, 0.8],
-      material: 'Wood',
-      color: C.woodLight,
-      anchored: true
-    });
-    // Torso
-    parts.push({
-      name: `${d.name}_Torso`,
-      className: 'Part',
-      position: [d.x, 3.8, d.z],
-      size: [2.4, 2.8, 1.4],
-      material: 'Fabric',
-      color: d.robe,
-      anchored: true
-    });
-    // Arm Beam
-    parts.push({
-      name: `${d.name}_Arms`,
-      className: 'Part',
-      position: [d.x, 4.6, d.z],
-      size: [4.4, 0.7, 0.7],
-      material: 'Wood',
-      color: C.woodLight,
-      anchored: true
-    });
-    // Straw Head
-    parts.push({
-      name: `${d.name}_Head`,
-      className: 'Part',
-      shape: 'Ball',
-      position: [d.x, 5.8, d.z],
-      size: [1.4, 1.4, 1.4],
-      material: 'Fabric',
-      color: C.clothStraw,
-      anchored: true
-    });
-    // Wizard Hat Brim
-    parts.push({
-      name: `${d.name}_HatBrim`,
-      className: 'Part',
-      position: [d.x, 6.4, d.z],
-      size: [2.6, 0.25, 2.6],
-      material: 'Fabric',
-      color: d.hat,
-      anchored: true
-    });
-    // Wizard Hat Cone
-    parts.push({
-      name: `${d.name}_HatCone`,
-      className: 'Part',
-      position: [d.x, 7.3, d.z],
-      size: [1.4, 1.8, 1.4],
-      material: 'Fabric',
-      color: d.hat,
-      anchored: true
-    });
-    // Target Disc on Torso
-    parts.push({
-      name: `${d.name}_Target`,
-      className: 'Part',
-      position: [d.x, 3.8, d.z - 0.75],
-      size: [1.2, 1.2, 0.15],
-      material: 'SmoothPlastic',
-      color: C.fireOrange,
-      anchored: true
-    });
-    parts.push({
-      className: 'PointLight',
-      name: `${d.name}_TargetLight`,
-      parentPart: `${d.name}_Target`,
-      color: C.magicCyan,
-      brightness: 1.5,
-      range: 10,
+      name: `${cd.name}_KeyLight`,
+      parentPart: `${cd.name}_MagicKey_Shaft`,
+      color: cd.lightColor,
+      brightness: 2.5,
+      range: 12,
       shadows: false
     });
-  });
-
-  // Range Torches
-  parts.push(...createTorch('Dueling_Torch_1', [rx - 12, 0.5, rz - 8]));
-  parts.push(...createTorch('Dueling_Torch_2', [rx + 12, 0.5, rz - 8]));
-
-  return parts;
-}
-
-// -----------------------------------------------------------------------------
-// 7. ZONE 5: ELF-DWARF FORGE & ARCANE ENCHANTER (SOUTH-WEST)
-// -----------------------------------------------------------------------------
-function buildZone5ElfForge() {
-  const parts = [];
-  const fx = -42, fz = 42;
-
-  // Workshop Floor
-  parts.push({
-    name: 'Forge_Floor',
-    className: 'Part',
-    position: [fx, 0.4, fz],
-    size: [22, 0.8, 22],
-    material: 'Slate',
-    color: C.stoneSlate,
-    anchored: true
-  });
-
-  // Stone Forge Hearth & Furnace
-  const hx = fx - 5, hz = fz + 5;
-  parts.push({
-    name: 'Forge_Hearth_Base',
-    className: 'Part',
-    position: [hx, 2.5, hz],
-    size: [6.5, 4.2, 6.5],
-    material: 'Cobblestone',
-    color: C.stoneDark,
-    anchored: true
-  });
-  parts.push({
-    name: 'Forge_Charcoal_Bed',
-    className: 'Part',
-    position: [hx, 3.8, hz],
-    size: [4.2, 0.6, 4.2],
-    material: 'Basalt',
-    color: [35, 25, 20],
-    anchored: true
-  });
-  parts.push({
-    name: 'Forge_Glowing_Coals',
-    className: 'Part',
-    position: [hx, 4.2, hz],
-    size: [3.4, 0.4, 3.4],
-    material: 'Neon',
-    transparency: 0.3,
-    color: C.fireOrange,
-    anchored: true
-  });
-  // Forge Fire Light & Sparks
-  parts.push({
-    className: 'PointLight',
-    name: 'Forge_Light',
-    parentPart: 'Forge_Glowing_Coals',
-    color: [255, 135, 30],
-    brightness: 2.9,
-    range: 28,
-    shadows: true
-  });
-  parts.push({
-    className: 'ParticleEmitter',
-    name: 'Forge_Sparks',
-    parentPart: 'Forge_Glowing_Coals',
-    rate: 30,
-    lifetime: [0.8, 1.6],
-    speed: [2, 5],
-    lightEmission: 1.0,
-    lightInfluence: 0.0
-  });
-
-  // Hood & Chimney
-  parts.push({
-    name: 'Forge_Hood',
-    className: 'Part',
-    position: [hx, 7.2, hz],
-    size: [5.8, 3.0, 5.8],
-    material: 'Metal',
-    color: C.ironDark,
-    anchored: true
-  });
-  parts.push({
-    name: 'Forge_Chimney',
-    className: 'Part',
-    position: [hx, 14, hz],
-    size: [3.2, 11, 3.2],
-    material: 'Cobblestone',
-    color: C.stoneDark,
-    anchored: true
-  });
-  parts.push({
-    className: 'ParticleEmitter',
-    name: 'Forge_ChimneySmoke',
-    parentPart: 'Forge_Chimney',
-    rate: 14,
-    lifetime: [2.0, 3.8],
-    speed: [2, 4],
-    lightEmission: 0.4,
-    lightInfluence: 0.7
-  });
-
-  // Anvil on Oak Stump
-  const ax = fx + 2, az = fz + 1;
-  parts.push({
-    name: 'Anvil_Oak_Stump',
-    className: 'Part',
-    position: [ax, 1.8, az],
-    size: [2.8, 2.8, 2.8],
-    material: 'Wood',
-    color: C.woodDark,
-    anchored: true
-  });
-  parts.push({
-    name: 'Anvil_Iron_Base',
-    className: 'Part',
-    position: [ax, 3.4, az],
-    size: [2.6, 0.8, 1.4],
-    material: 'Metal',
-    color: C.ironDark,
-    anchored: true
-  });
-  parts.push({
-    name: 'Anvil_Iron_Horn',
-    className: 'Part',
-    position: [ax + 0.3, 4.4, az],
-    size: [3.4, 0.9, 1.3],
-    material: 'Metal',
-    color: C.ironDark,
-    anchored: true
-  });
-
-  // Water Quenching Barrel with Steam
-  const bx = fx + 6, bz = fz + 6;
-  parts.push({
-    name: 'Quench_Barrel_Body',
-    className: 'Part',
-    position: [bx, 2.2, bz],
-    size: [2.6, 3.2, 2.6],
-    material: 'WoodPlanks',
-    color: C.woodPlank,
-    anchored: true
-  });
-  parts.push({
-    name: 'Quench_Barrel_Water',
-    className: 'Part',
-    position: [bx, 3.6, bz],
-    size: [2.2, 0.2, 2.2],
-    material: 'Glass',
-    transparency: 0.35,
-    color: [60, 140, 200],
-    anchored: true
-  });
-  parts.push({
-    className: 'ParticleEmitter',
-    name: 'Quench_Steam',
-    parentPart: 'Quench_Barrel_Water',
-    rate: 8,
-    lifetime: [1.2, 2.2],
-    speed: [0.8, 1.8],
-    lightEmission: 0.7,
-    lightInfluence: 0.3
-  });
-
-  // Jeweler's Bench for Rings & Armor
-  const wx = fx + 4, wz = fz - 5;
-  parts.push({
-    name: 'Enchant_Bench_Top',
-    className: 'Part',
-    position: [wx, 3.2, wz],
-    size: [8, 0.6, 3.2],
-    material: 'Wood',
-    color: C.woodDark,
-    anchored: true
-  });
-  parts.push({
-    name: 'Enchant_VelvetPad',
-    className: 'Part',
-    position: [wx - 1.5, 3.6, wz],
-    size: [4.2, 0.25, 2.2],
-    material: 'Fabric',
-    color: [120, 25, 45],
-    anchored: true
-  });
-
-  // 3 Glowing Magical Rings on Display
-  const rings = [
-    { name: 'Ring_Ruby_Fire', offX: -1.2, color: C.potionRed },
-    { name: 'Ring_Sapphire_Mana', offX: 0, color: C.magicBlue },
-    { name: 'Ring_Emerald_Life', offX: 1.2, color: C.potionGreen }
-  ];
-  rings.forEach((r) => {
-    parts.push({
-      name: `${r.name}_Band`,
-      className: 'Part',
-      position: [wx - 1.5 + r.offX, 3.85, wz],
-      size: [0.7, 0.2, 0.7],
-      material: 'Metal',
-      color: C.goldTrim,
-      anchored: true
-    });
-    parts.push({
-      name: `${r.name}_Gem`,
-      className: 'Part',
-      shape: 'Ball',
-      position: [wx - 1.5 + r.offX, 4.05, wz],
-      size: [0.35, 0.35, 0.35],
-      material: 'Neon',
-      transparency: 0.1,
-      color: r.color,
-      anchored: true
-    });
-  });
-
-  // Armor Stand (Breastplate & Helm)
-  parts.push({
-    name: 'ArmorStand_Breastplate',
-    className: 'Part',
-    position: [wx + 2.2, 4.8, wz],
-    size: [1.8, 2.0, 1.0],
-    material: 'Metal',
-    color: [195, 200, 210],
-    anchored: true
-  });
-  parts.push({
-    name: 'ArmorStand_Helmet',
-    className: 'Part',
-    shape: 'Ball',
-    position: [wx + 2.2, 6.1, wz],
-    size: [1.2, 1.2, 1.2],
-    material: 'Metal',
-    color: [195, 200, 210],
-    anchored: true
-  });
-
-  // THE ELF-DWARF BLACKSMITH NPC
-  const ex = ax - 1.8, ez = az;
-  parts.push({
-    name: 'Elf_Legs',
-    className: 'Part',
-    position: [ex, 0.8, ez],
-    size: [0.8, 1.4, 1.4],
-    material: 'Leather',
-    color: C.woodDark,
-    anchored: true
-  });
-  parts.push({
-    name: 'Elf_Torso',
-    className: 'Part',
-    position: [ex, 2.1, ez],
-    size: [1.5, 1.5, 1.2],
-    material: 'Fabric',
-    color: [55, 95, 60],
-    anchored: true
-  });
-  parts.push({
-    name: 'Elf_Apron',
-    className: 'Part',
-    position: [ex + 0.15, 2.0, ez],
-    size: [0.2, 1.6, 1.0],
-    material: 'Leather',
-    color: [100, 60, 35],
-    anchored: true
-  });
-  // Right Arm with Hammer raised over Anvil
-  parts.push({
-    name: 'Elf_Arm_R',
-    className: 'Part',
-    position: [ex + 0.4, 2.4, ez + 0.7],
-    size: [0.55, 1.1, 0.55],
-    material: 'Fabric',
-    color: [55, 95, 60],
-    anchored: true
-  });
-  parts.push({
-    name: 'Elf_Hammer',
-    className: 'Part',
-    position: [ex + 0.8, 3.4, ez + 0.7],
-    size: [0.9, 0.6, 0.6],
-    material: 'Metal',
-    color: C.ironDark,
-    anchored: true
-  });
-  // Elf Head
-  parts.push({
-    name: 'Elf_Head',
-    className: 'Part',
-    shape: 'Ball',
-    position: [ex, 3.2, ez],
-    size: [1.1, 1.1, 1.1],
-    material: 'SmoothPlastic',
-    color: C.skinElf,
-    anchored: true
-  });
-  // Pointed Elf Ears
-  parts.push({
-    name: 'Elf_Ear_L',
-    className: 'Part',
-    position: [ex, 3.4, ez - 0.65],
-    size: [0.2, 0.5, 0.3],
-    material: 'SmoothPlastic',
-    color: C.skinElf,
-    anchored: true
-  });
-  parts.push({
-    name: 'Elf_Ear_R',
-    className: 'Part',
-    position: [ex, 3.4, ez + 0.65],
-    size: [0.2, 0.5, 0.3],
-    material: 'SmoothPlastic',
-    color: C.skinElf,
-    anchored: true
-  });
-  // Braided Beard
-  parts.push({
-    name: 'Elf_Beard',
-    className: 'Part',
-    position: [ex + 0.4, 2.8, ez],
-    size: [0.45, 0.9, 0.7],
-    material: 'Fabric',
-    color: C.beardBrown,
-    anchored: true
-  });
-
-  // Forge Torches
-  parts.push(...createTorch('Forge_Torch_1', [fx - 7.5, 4.5, fz - 7.5]));
-  parts.push(...createTorch('Forge_Torch_2', [fx + 7.5, 4.5, fz - 7.5]));
-
-  return parts;
-}
-
-// -----------------------------------------------------------------------------
-// 8. VILLAGE COTTAGES
-// -----------------------------------------------------------------------------
-function buildVillageHouses() {
-  const parts = [];
-
-  function buildCottage(name, posX, posZ, shingleColor) {
-    const w = 18, d = 16;
-    // Foundation
-    parts.push({
-      name: `${name}_Foundation`,
-      className: 'Part',
-      position: [posX, 1.4, posZ],
-      size: [w, 2.4, d],
-      material: 'Cobblestone',
-      color: C.stoneCobble,
-      anchored: true
-    });
-    // Upper Walls
-    parts.push({
-      name: `${name}_Walls`,
-      className: 'Part',
-      position: [posX, 7, posZ],
-      size: [w - 0.8, 9, d - 0.8],
-      material: 'WoodPlanks',
-      color: [220, 210, 195],
-      anchored: true
-    });
-    // Corner Timber Beams
-    for (let ox of [-w / 2 + 0.5, w / 2 - 0.5]) {
-      for (let oz of [-d / 2 + 0.5, d / 2 - 0.5]) {
-        parts.push({
-          name: `${name}_Beam_${ox}_${oz}`,
-          className: 'Part',
-          position: [posX + ox, 7, posZ + oz],
-          size: [1.2, 11, 1.2],
-          material: 'Wood',
-          color: C.woodDark,
-          anchored: true
-        });
-      }
-    }
-    // Steep Gable Roof
-    parts.push({
-      name: `${name}_Roof`,
-      className: 'Part',
-      position: [posX, 13.5, posZ],
-      size: [w + 2.5, 4.5, d + 2.5],
-      material: 'WoodPlanks',
-      color: shingleColor,
-      anchored: true
-    });
-    // Door
-    parts.push({
-      name: `${name}_Door`,
-      className: 'Part',
-      position: [posX, 3.5, posZ + d / 2],
-      size: [3.2, 5.5, 0.4],
-      material: 'WoodPlanks',
-      color: C.woodDark,
-      anchored: true
-    });
-    // Chimney with Smoke
-    parts.push({
-      name: `${name}_Chimney`,
-      className: 'Part',
-      position: [posX + w / 2 - 2, 12, posZ - d / 2 + 2],
-      size: [2.8, 12, 2.8],
-      material: 'Cobblestone',
-      color: C.stoneDark,
-      anchored: true
-    });
     parts.push({
       className: 'ParticleEmitter',
-      name: `${name}_ChimneySmoke`,
-      parentPart: `${name}_Chimney`,
-      rate: 8,
-      lifetime: [2.5, 4.5],
-      speed: [1.5, 3.0],
-      lightEmission: 0.35,
-      lightInfluence: 0.75
-    });
-
-    parts.push(...createTorch(`${name}_DoorTorch`, [posX + 3.2, 4.2, posZ + d / 2 + 0.8], true));
-  }
-
-  // Cottage 1: North-West
-  buildCottage('House_NW', -26, -32, C.roofShingleSlate);
-  // Cottage 2: North-East
-  buildCottage('House_NE', 26, -32, C.roofShingleRed);
-  // Cottage 3: South (Tavern / Inn)
-  buildCottage('House_South', 0, 52, C.roofShingleBlue);
-
-  return parts;
-}
-
-// -----------------------------------------------------------------------------
-// 9. ENCHANTED FOREST (STYLIZED BLOCK PINE TREES & BOULDERS)
-// -----------------------------------------------------------------------------
-function buildEnchantedForest() {
-  const parts = [];
-
-  function createPineTree(name, x, z, scale = 1.0) {
-    const trunkH = 8 * scale;
-    // Sturdy Trunk
-    parts.push({
-      name: `${name}_Trunk`,
-      className: 'Part',
-      position: [x, trunkH / 2, z],
-      size: [2.0 * scale, trunkH, 2.0 * scale],
-      material: 'Wood',
-      color: C.woodDark,
-      anchored: true
-    });
-    // 3 Tapered Foliage Blocks
-    parts.push({
-      name: `${name}_Foliage_1`,
-      className: 'Part',
-      position: [x, trunkH + 2 * scale, z],
-      size: [10 * scale, 3.5 * scale, 10 * scale],
-      material: 'Grass',
-      color: C.leafPine1,
-      anchored: true
-    });
-    parts.push({
-      name: `${name}_Foliage_2`,
-      className: 'Part',
-      position: [x, trunkH + 4.8 * scale, z],
-      size: [7.5 * scale, 3.2 * scale, 7.5 * scale],
-      material: 'Grass',
-      color: C.leafPine2,
-      anchored: true
-    });
-    parts.push({
-      name: `${name}_Foliage_3`,
-      className: 'Part',
-      position: [x, trunkH + 7.2 * scale, z],
-      size: [4.8 * scale, 3.0 * scale, 4.8 * scale],
-      material: 'Grass',
-      color: C.leafPine3,
-      anchored: true
-    });
-  }
-
-  function createBoulder(name, x, z, scale = 1.0) {
-    parts.push({
-      name: `${name}_Rock`,
-      className: 'Part',
-      shape: 'Ball',
-      position: [x, 1.4 * scale, z],
-      size: [4.5 * scale, 3.2 * scale, 4.2 * scale],
-      material: 'Slate',
-      color: [95, 105, 90],
-      anchored: true
-    });
-  }
-
-  const treePositions = [
-    // North Forest (flanking castle)
-    [-46, -65, 1.3], [-40, -75, 1.5], [40, -75, 1.4], [46, -65, 1.2],
-    [-60, -55, 1.1], [60, -55, 1.2],
-    // East Forest
-    [68, -25, 1.2], [72, 0, 1.4], [70, 25, 1.1],
-    // South-East Forest
-    [65, 45, 1.3], [55, 62, 1.2], [38, 70, 1.4],
-    // South Forest
-    [18, 68, 1.1], [-18, 68, 1.2],
-    // South-West Forest
-    [-38, 70, 1.3], [-55, 62, 1.2], [-65, 45, 1.1],
-    // West Forest
-    [-70, 25, 1.2], [-72, 0, 1.4], [-68, -25, 1.3]
-  ];
-
-  treePositions.forEach(([tx, tz, scale], idx) => {
-    createPineTree(`Tree_${idx}`, tx, tz, scale);
-  });
-
-  const boulders = [
-    [-55, -45, 1.2], [55, -45, 1.4], [62, -15, 1.1], [-62, 15, 1.3],
-    [50, 55, 1.0], [-50, 55, 1.2]
-  ];
-  boulders.forEach(([bx, bz, scale], idx) => {
-    createBoulder(`Boulder_${idx}`, bx, bz, scale);
-  });
-
-  // Floating Golden Wisps
-  const wispAnchors = [
-    [-45, 5, -45], [45, 5, -45], [55, 5, 20], [-55, 5, 20], [0, 5, 65]
-  ];
-  wispAnchors.forEach(([wx, wy, wz], idx) => {
-    parts.push({
-      name: `Forest_Wisp_${idx}`,
-      className: 'Part',
-      shape: 'Ball',
-      position: [wx, wy, wz],
-      size: [0.8, 0.8, 0.8],
-      material: 'Neon',
-      transparency: 0.4,
-      color: C.magicGold,
-      anchored: true,
-      canCollide: false
-    });
-    parts.push({
-      className: 'ParticleEmitter',
-      name: `Forest_WispVFX_${idx}`,
-      parentPart: `Forest_Wisp_${idx}`,
-      rate: 12,
-      lifetime: [2.0, 4.0],
-      speed: [0.5, 1.8],
+      name: `${cd.name}_KeySparkles`,
+      parentPart: `${cd.name}_MagicKey_Shaft`,
+      rate: 14,
+      lifetime: [0.6, 1.4],
+      speed: [0.6, 1.8],
       lightEmission: 0.9,
       lightInfluence: 0.1
     });
   });
 
+  // Sconce torches on vault walls
+  parts.push(...createWallTorch('Vault_Torch_N', [vx - 6, 7.5, vz - 9.5], [0, 0, 1]));
+  parts.push(...createWallTorch('Vault_Torch_S', [vx - 6, 7.5, vz + 9.5], [0, 0, -1]));
+
   return parts;
 }
 
 // -----------------------------------------------------------------------------
-// 10. TOWN SQUARE DETAILS & LIGHTING
+// 4. ZONE 3 (WEST): "THE BUBBLING CAULDRON" TUDOR APOTHECARY
 // -----------------------------------------------------------------------------
-function buildTownSquareDetails() {
+function buildZone3Apothecary() {
+  const parts = [];
+  const ax = -32, az = -5;
+
+  // Ground Floor: Aged Stone Foundation & Walls
+  parts.push({
+    name: 'Apothecary_GFloor_Foundation',
+    className: 'Part',
+    position: [ax, 1.0, az],
+    size: [22, 1.2, 24],
+    material: 'Slate',
+    color: C.stoneWallDark,
+    anchored: true
+  });
+
+  // Stone Walls of Ground Floor
+  parts.push({
+    name: 'Apothecary_GFloor_Wall_Back',
+    className: 'Part',
+    position: [ax - 10, 7.0, az],
+    size: [2.5, 11, 24],
+    material: 'Cobblestone',
+    color: C.stoneWallLight,
+    anchored: true
+  });
+  parts.push({
+    name: 'Apothecary_GFloor_Wall_North',
+    className: 'Part',
+    position: [ax, 7.0, az - 11],
+    size: [22, 11, 2.5],
+    material: 'Cobblestone',
+    color: C.stoneWallLight,
+    anchored: true
+  });
+  parts.push({
+    name: 'Apothecary_GFloor_Wall_South',
+    className: 'Part',
+    position: [ax, 7.0, az + 11],
+    size: [22, 11, 2.5],
+    material: 'Cobblestone',
+    color: C.stoneWallLight,
+    anchored: true
+  });
+  // Front Wall with Doorway & Grand Bay Shop Window
+  parts.push({
+    name: 'Apothecary_GFloor_Front_L',
+    className: 'Part',
+    position: [ax + 9.5, 7.0, az - 7.5],
+    size: [2.0, 11, 7.0],
+    material: 'Cobblestone',
+    color: C.stoneWallLight,
+    anchored: true
+  });
+  parts.push({
+    name: 'Apothecary_GFloor_Front_R',
+    className: 'Part',
+    position: [ax + 9.5, 7.0, az + 7.5],
+    size: [2.0, 11, 7.0],
+    material: 'Cobblestone',
+    color: C.stoneWallLight,
+    anchored: true
+  });
+  parts.push({
+    name: 'Apothecary_GFloor_DoorLintel',
+    className: 'Part',
+    position: [ax + 9.5, 10.5, az + 2.5],
+    size: [2.0, 3.5, 4.0],
+    material: 'Wood',
+    color: C.woodTimberDark,
+    anchored: true
+  });
+
+  // Shop Glass Bay Window with warm interior glow
+  parts.push({
+    name: 'Apothecary_BayWindow_Glass',
+    className: 'Part',
+    position: [ax + 10.5, 6.5, az - 2.5],
+    size: [1.8, 6.5, 6.0],
+    material: 'Glass',
+    color: [255, 230, 170],
+    transparency: 0.45,
+    anchored: true
+  });
+  parts.push({
+    className: 'PointLight',
+    name: 'Apothecary_WindowGlow',
+    parentPart: 'Apothecary_BayWindow_Glass',
+    color: [255, 210, 130],
+    brightness: 2.2,
+    range: 16,
+    shadows: false
+  });
+
+  // ---------------------------------------------------------------------------
+  // Second Floor: Tudor Timber-Framing with Voladizo (Jettying overhang)
+  // Overhangs 3 studs forward toward the street (X = +1.5)
+  // ---------------------------------------------------------------------------
+  const fx = ax + 1.2;
+  // Overhanging Jetty Floor Beams
+  parts.push({
+    name: 'Tudor_Jetty_FloorBeams',
+    className: 'Part',
+    position: [fx, 13.0, az],
+    size: [24.5, 1.2, 26],
+    material: 'Wood',
+    color: C.woodTimberDark,
+    anchored: true
+  });
+
+  // Upper Floor Walls (Aged Plaster Stucco)
+  parts.push({
+    name: 'Tudor_Upper_Plaster_Front',
+    className: 'Part',
+    position: [fx + 11.2, 18.5, az],
+    size: [1.2, 10, 24],
+    material: 'Concrete',
+    color: C.plasterAged,
+    anchored: true
+  });
+  parts.push({
+    name: 'Tudor_Upper_Plaster_Back',
+    className: 'Part',
+    position: [fx - 11.2, 18.5, az],
+    size: [1.2, 10, 24],
+    material: 'Concrete',
+    color: C.plasterAged,
+    anchored: true
+  });
+  parts.push({
+    name: 'Tudor_Upper_Plaster_North',
+    className: 'Part',
+    position: [fx, 18.5, az - 11.5],
+    size: [22, 10, 1.2],
+    material: 'Concrete',
+    color: C.plasterAged,
+    anchored: true
+  });
+  parts.push({
+    name: 'Tudor_Upper_Plaster_South',
+    className: 'Part',
+    position: [fx, 18.5, az + 11.5],
+    size: [22, 10, 1.2],
+    material: 'Concrete',
+    color: C.plasterAged,
+    anchored: true
+  });
+
+  // Tudor Dark Oak Half-Timber Beams (Framing Grid)
+  const timberPosts = [-10, -5, 0, 5, 10];
+  timberPosts.forEach((tz, idx) => {
+    parts.push({
+      name: `Tudor_Beam_Front_${idx}`,
+      className: 'Part',
+      position: [fx + 11.9, 18.5, az + tz],
+      size: [0.4, 10, 0.8],
+      material: 'Wood',
+      color: C.woodTimberDark,
+      anchored: true
+    });
+  });
+  // Diagonal Tudor Braces
+  parts.push({
+    name: 'Tudor_Brace_L',
+    className: 'Part',
+    position: [fx + 11.85, 18.5, az - 7.5],
+    size: [0.35, 7.5, 0.8],
+    cframeRotation: [35, 0, 0],
+    material: 'Wood',
+    color: C.woodTimberDark,
+    anchored: true
+  });
+  parts.push({
+    name: 'Tudor_Brace_R',
+    className: 'Part',
+    position: [fx + 11.85, 18.5, az + 7.5],
+    size: [0.35, 7.5, 0.8],
+    cframeRotation: [-35, 0, 0],
+    material: 'Wood',
+    color: C.woodTimberDark,
+    anchored: true
+  });
+
+  // Steep Pitched Slate Shingle Roof with Gable End
+  parts.push({
+    name: 'Apothecary_Roof_Gable',
+    className: 'Part',
+    position: [fx, 25.5, az],
+    size: [26, 4.5, 27],
+    material: 'Slate',
+    color: C.roofShingleRed,
+    anchored: true
+  });
+  parts.push({
+    name: 'Apothecary_Roof_Ridge',
+    className: 'Part',
+    position: [fx, 28.5, az],
+    size: [26, 2.0, 12],
+    material: 'Slate',
+    color: C.roofSlateBlue,
+    anchored: true
+  });
+
+  // Tall Stone Chimney with Hearth Smoke
+  parts.push({
+    name: 'Apothecary_Chimney_Base',
+    className: 'Part',
+    position: [fx - 8, 18, az + 10],
+    size: [3.5, 18, 3.5],
+    material: 'Cobblestone',
+    color: C.stoneWallDark,
+    anchored: true
+  });
+  parts.push({
+    name: 'Apothecary_Chimney_Top',
+    className: 'Part',
+    position: [fx - 8, 28, az + 10],
+    size: [4.2, 2.5, 4.2],
+    material: 'Slate',
+    color: C.stoneSlate,
+    anchored: true
+  });
+  parts.push({
+    className: 'ParticleEmitter',
+    name: 'Apothecary_ChimneySmoke',
+    parentPart: 'Apothecary_Chimney_Top',
+    rate: 15,
+    lifetime: [2.0, 4.5],
+    speed: [1.5, 3.5],
+    lightEmission: 0.1,
+    lightInfluence: 0.9
+  });
+
+  // ---------------------------------------------------------------------------
+  // FRONT PORCH & THE GIANT BUBBLING EMERALD CAULDRON
+  // ---------------------------------------------------------------------------
+  // Porch Wooden Awning Roof
+  parts.push({
+    name: 'Apothecary_Porch_Awning',
+    className: 'Part',
+    position: [ax + 14.5, 8.5, az],
+    size: [6.0, 0.6, 18.0],
+    material: 'Wood',
+    color: C.woodTimberDark,
+    anchored: true
+  });
+  parts.push({
+    name: 'Apothecary_Porch_Post_N',
+    className: 'Part',
+    position: [ax + 17.0, 4.5, az - 8.0],
+    size: [0.8, 8.0, 0.8],
+    material: 'Wood',
+    color: C.woodTimberDark,
+    anchored: true
+  });
+  parts.push({
+    name: 'Apothecary_Porch_Post_S',
+    className: 'Part',
+    position: [ax + 17.0, 4.5, az + 8.0],
+    size: [0.8, 8.0, 0.8],
+    material: 'Wood',
+    color: C.woodTimberDark,
+    anchored: true
+  });
+
+  // The Giant Cast-Iron Cauldron (Tripod Base, Heavy Belly, Glowing Emerald Brew)
+  const cx = ax + 14.5, cz = az - 2.0;
+
+  // Fire pit under cauldron
+  parts.push({
+    name: 'Cauldron_FireRing',
+    className: 'Part',
+    position: [cx, 0.7, cz],
+    size: [4.2, 0.4, 4.2],
+    material: 'Slate',
+    color: C.stoneWallDark,
+    anchored: true
+  });
+  parts.push({
+    name: 'Cauldron_Embers',
+    className: 'Part',
+    position: [cx, 0.95, cz],
+    size: [2.8, 0.3, 2.8],
+    material: 'Neon',
+    color: C.flameOuter,
+    anchored: true
+  });
+
+  // Cauldron Legs (Tripod)
+  const legAngles = [0, 120, 240];
+  legAngles.forEach((ang, lIdx) => {
+    const rad = (ang * Math.PI) / 180;
+    const lx = cx + Math.cos(rad) * 1.6;
+    const lz = cz + Math.sin(rad) * 1.6;
+    parts.push({
+      name: `Cauldron_Leg_${lIdx}`,
+      className: 'Part',
+      position: [lx, 1.6, lz],
+      size: [0.6, 1.8, 0.6],
+      material: 'Metal',
+      color: C.ironBlack,
+      anchored: true
+    });
+  });
+
+  // Cauldron Heavy Belly
+  parts.push({
+    name: 'Cauldron_Belly_Base',
+    className: 'Part',
+    position: [cx, 2.2, cz],
+    size: [3.8, 1.2, 3.8],
+    material: 'Metal',
+    color: C.ironBlack,
+    anchored: true
+  });
+  parts.push({
+    name: 'Cauldron_Belly_Mid',
+    className: 'Part',
+    position: [cx, 3.2, cz],
+    size: [4.6, 1.4, 4.6],
+    material: 'Metal',
+    color: C.ironBlack,
+    anchored: true
+  });
+  parts.push({
+    name: 'Cauldron_Belly_Rim',
+    className: 'Part',
+    position: [cx, 4.0, cz],
+    size: [4.8, 0.6, 4.8],
+    material: 'Metal',
+    color: C.ironBlack,
+    anchored: true
+  });
+
+  // Glowing Emerald Bubbling Potion Liquid Surface (Translucent Glass)
+  parts.push({
+    name: 'Zone3_Potions_CauldronLiquid',
+    className: 'Part',
+    position: [cx, 3.85, cz],
+    size: [4.1, 0.2, 4.1],
+    material: 'Glass',
+    color: [25, 205, 85],
+    transparency: 0.25,
+    anchored: true
+  });
+
+  // Floating Boiling Bubbles
+  const bubbleOffsets = [
+    [-0.8, 4.1, -0.6, 0.7],
+    [0.7, 4.2, 0.5, 0.8],
+    [-0.3, 4.3, 0.9, 0.6],
+    [0.6, 4.15, -0.8, 0.5]
+  ];
+  bubbleOffsets.forEach(([bx, by, bz, bSize], idx) => {
+    parts.push({
+      name: `Cauldron_Bubble_${idx}`,
+      className: 'Part',
+      position: [cx + bx, by, cz + bz],
+      size: [bSize, bSize, bSize],
+      material: 'Glass',
+      color: [40, 240, 110],
+      transparency: 0.3,
+      anchored: true
+    });
+  });
+
+  // Cauldron Magical Steam & Green Bubble Particles
+  parts.push({
+    className: 'ParticleEmitter',
+    name: 'Cauldron_GreenVapor',
+    parentPart: 'Zone3_Potions_CauldronLiquid',
+    rate: 20,
+    lifetime: [0.8, 1.8],
+    speed: [0.8, 2.0],
+    lightEmission: 0.8,
+    lightInfluence: 0.2
+  });
+
+  // Soft Emerald Light Illuminating Porch
+  parts.push({
+    className: 'PointLight',
+    name: 'Cauldron_MagicLight',
+    parentPart: 'Zone3_Potions_CauldronLiquid',
+    color: [45, 230, 95],
+    brightness: 1.4,
+    range: 15,
+    shadows: true
+  });
+
+  // ---------------------------------------------------------------------------
+  // Apothecary Outdoor Potion Shelf Racks & 12 Colorful Vials
+  // ---------------------------------------------------------------------------
+  const rx = ax + 10.8, rz = az + 5.5;
+  // Wooden Shelf Framework
+  parts.push({
+    name: 'PotionRack_Backboard',
+    className: 'Part',
+    position: [rx, 4.2, rz],
+    size: [0.6, 6.0, 5.2],
+    material: 'Wood',
+    color: C.woodTimberDark,
+    anchored: true
+  });
+  const shelfHeights = [2.2, 3.8, 5.4];
+  shelfHeights.forEach((sy, sIdx) => {
+    parts.push({
+      name: `PotionRack_Shelf_${sIdx}`,
+      className: 'Part',
+      position: [rx + 0.6, sy, rz],
+      size: [1.4, 0.3, 5.0],
+      material: 'Wood',
+      color: C.woodPlankWarm,
+      anchored: true
+    });
+  });
+
+  // 12 Glowing Potion Phials on Shelves
+  const potionColors = [
+    C.potionRed, C.potionGreen, C.potionBlue, C.potionViolet,
+    C.magicGold, C.magicCyan, C.potionRed, C.potionGreen,
+    C.potionBlue, C.potionViolet, C.magicGold, C.magicCyan
+  ];
+  potionColors.forEach((pCol, pIdx) => {
+    const sIdx = Math.floor(pIdx / 4);
+    const colIdx = pIdx % 4;
+    const py = shelfHeights[sIdx] + 0.55;
+    const pzPos = rz - 1.8 + colIdx * 1.2;
+    parts.push({
+      name: `PotionBottle_${pIdx}`,
+      className: 'Part',
+      position: [rx + 0.6, py, pzPos],
+      size: [0.5, 0.8, 0.5],
+      material: 'Neon',
+      color: pCol,
+      anchored: true
+    });
+  });
+
+  // Sconce torches on shop front
+  parts.push(...createWallTorch('Apothecary_Torch_L', [ax + 10.2, 6.5, az - 9.0], [1, 0, 0]));
+  parts.push(...createWallTorch('Apothecary_Torch_R', [ax + 10.2, 6.5, az + 9.0], [1, 0, 0]));
+
+  return parts;
+}
+
+// -----------------------------------------------------------------------------
+// 5. ZONE 4 (SOUTHEAST): THE SPELLCASTER'S DUELING ARENA & MANNEQUINS
+// -----------------------------------------------------------------------------
+function buildZone4DuelingArena() {
+  const parts = [];
+  const dx = 32, dz = 24;
+
+  // Sunken Circular Stone Arena Bed
+  parts.push({
+    name: 'Dueling_Arena_Bed',
+    className: 'Part',
+    position: [dx, 0.4, dz],
+    size: [26, 0.6, 26],
+    material: 'Slate',
+    color: C.stoneWallDark,
+    anchored: true
+  });
+  // Inner Sand / Crushed Stone Fighting Pit
+  parts.push({
+    name: 'Dueling_Arena_SandPit',
+    className: 'Part',
+    position: [dx, 0.75, dz],
+    size: [22, 0.2, 22],
+    material: 'Sand',
+    color: [180, 165, 135],
+    anchored: true
+  });
+
+  // Inlaid Magical Dueling Rune Circle on Ground (Carved Dark Basalt & Arcane Inlay)
+  parts.push({
+    name: 'Dueling_RuneCircle_Outer',
+    className: 'Part',
+    position: [dx, 0.82, dz],
+    size: [17, 0.08, 17],
+    material: 'Slate',
+    color: [45, 42, 48],
+    anchored: true
+  });
+  parts.push({
+    name: 'Dueling_RuneCircle_InnerBed',
+    className: 'Part',
+    position: [dx, 0.86, dz],
+    size: [13, 0.05, 13],
+    material: 'Slate',
+    color: [35, 33, 40],
+    anchored: true
+  });
+  parts.push({
+    name: 'Dueling_RuneStar_Inner',
+    className: 'Part',
+    position: [dx, 0.90, dz],
+    size: [9, 0.05, 9],
+    cframeRotation: [0, 45, 0],
+    material: 'Neon',
+    color: C.magicCyan,
+    transparency: 0.65,
+    anchored: true
+  });
+
+  // Low Perimeter Stone Balustrade & Pillars
+  const arenaCorners = [
+    [-12, -12], [12, -12],
+    [-12, 12], [12, 12]
+  ];
+  arenaCorners.forEach(([ox, oz], cIdx) => {
+    // Corner Stone Pillar
+    parts.push({
+      name: `Dueling_Col_${cIdx}`,
+      className: 'Part',
+      position: [dx + ox, 2.5, dz + oz],
+      size: [2.2, 4.0, 2.2],
+      material: 'Slate',
+      color: C.stoneSlate,
+      anchored: true
+    });
+    // Fire Brazier on Corner Pillar
+    parts.push(...createFreeTorch(`Dueling_Brazier_${cIdx}`, [dx + ox, 4.5, dz + oz]));
+  });
+
+  // Balustrade Walls connecting pillars
+  parts.push({
+    name: 'Dueling_Rail_North',
+    className: 'Part',
+    position: [dx, 1.8, dz - 12],
+    size: [22, 2.0, 1.2],
+    material: 'Cobblestone',
+    color: C.stoneWallLight,
+    anchored: true
+  });
+  parts.push({
+    name: 'Dueling_Rail_South',
+    className: 'Part',
+    position: [dx, 1.8, dz + 12],
+    size: [22, 2.0, 1.2],
+    material: 'Cobblestone',
+    color: C.stoneWallLight,
+    anchored: true
+  });
+  parts.push({
+    name: 'Dueling_Rail_East',
+    className: 'Part',
+    position: [dx + 12, 1.8, dz],
+    size: [1.2, 2.0, 22],
+    material: 'Cobblestone',
+    color: C.stoneWallLight,
+    anchored: true
+  });
+
+  // ---------------------------------------------------------------------------
+  // 3 DISTINCT WIZARD TARGET MANNEQUINS
+  // ---------------------------------------------------------------------------
+  const mannequinData = [
+    {
+      id: 1,
+      modelName: 'Zone4_Dueling_Dummy_Apprentice',
+      title: 'Maniquí de Aprendiz',
+      offsetZ: -6.0,
+      robeColor: [45, 95, 175], // Royal Blue Robes
+      hatColor: [35, 75, 145],
+      hatTrim: C.goldRoyal,
+      level: 'Nv. 1',
+      maxHp: 100
+    },
+    {
+      id: 2,
+      modelName: 'Zone4_Dueling_Dummy_Battle',
+      title: 'Maniquí de Batalla',
+      offsetZ: 0.0,
+      robeColor: [165, 40, 40], // Crimson Red Robes
+      hatColor: [130, 30, 30],
+      hatTrim: C.silverSteel,
+      level: 'Nv. 25',
+      maxHp: 500
+    },
+    {
+      id: 3,
+      modelName: 'Zone4_Dueling_Dummy_Archmage',
+      title: 'Maniquí de Archimago',
+      offsetZ: 6.0,
+      robeColor: [110, 35, 160], // Arcane Purple Robes
+      hatColor: [85, 25, 125],
+      hatTrim: C.magicCyan,
+      level: 'Nv. 60',
+      maxHp: 2000
+    }
+  ];
+
+  mannequinData.forEach(md => {
+    const mx = dx + 3.5;
+    const mz = dz + md.offsetZ;
+
+    // Heavy Round Wooden Swivel Base
+    parts.push({
+      name: `${md.modelName}_BasePlate`,
+      className: 'Part',
+      position: [mx, 1.1, mz],
+      size: [2.8, 0.4, 2.8],
+      material: 'Wood',
+      color: C.woodTimberDark,
+      anchored: true
+    });
+
+    // Central Wooden Pivot Post
+    parts.push({
+      name: `${md.modelName}_StandPost`,
+      className: 'Part',
+      position: [mx, 2.6, mz],
+      size: [0.6, 2.8, 0.6],
+      material: 'Wood',
+      color: C.woodPlankAged,
+      anchored: true
+    });
+
+    // Crossbar Shoulder Spar
+    parts.push({
+      name: `${md.modelName}_ShoulderSpar`,
+      className: 'Part',
+      position: [mx, 4.4, mz],
+      size: [0.5, 0.5, 3.2],
+      material: 'Wood',
+      color: C.woodPlankAged,
+      anchored: true
+    });
+
+    // Straw / Cloth Torso
+    parts.push({
+      name: `${md.modelName}_Torso`,
+      className: 'Part',
+      position: [mx, 3.6, mz],
+      size: [1.8, 2.4, 2.2],
+      material: 'Fabric',
+      color: md.robeColor,
+      anchored: true
+    });
+
+    // Straw Head
+    parts.push({
+      name: `${md.modelName}_Head`,
+      className: 'Part',
+      position: [mx, 5.3, mz],
+      size: [1.3, 1.3, 1.3],
+      material: 'Fabric',
+      color: [205, 185, 140], // Straw canvas
+      anchored: true
+    });
+
+    // Pointed Wizard Hat: Brim
+    parts.push({
+      name: `${md.modelName}_HatBrim`,
+      className: 'Part',
+      position: [mx, 6.0, mz],
+      size: [2.5, 0.25, 2.5],
+      material: 'Fabric',
+      color: md.hatColor,
+      anchored: true
+    });
+    // Pointed Wizard Hat: Cone Crown
+    parts.push({
+      name: `${md.modelName}_HatCone_Mid`,
+      className: 'Part',
+      position: [mx, 6.7, mz],
+      size: [1.6, 1.2, 1.6],
+      material: 'Fabric',
+      color: md.hatColor,
+      anchored: true
+    });
+    parts.push({
+      name: `${md.modelName}_HatCone_Tip`,
+      className: 'Part',
+      position: [mx + 0.1, 7.5, mz],
+      size: [0.9, 1.2, 0.9],
+      material: 'Fabric',
+      color: md.hatColor,
+      anchored: true
+    });
+    parts.push({
+      name: `${md.modelName}_HatBand`,
+      className: 'Part',
+      position: [mx, 6.2, mz],
+      size: [1.7, 0.3, 1.7],
+      material: 'Neon',
+      color: md.hatTrim,
+      anchored: true
+    });
+
+    // Target Decal / Practice Wand in Hand
+    parts.push({
+      name: `${md.modelName}_TargetRing`,
+      className: 'Part',
+      position: [mx - 0.95, 3.6, mz],
+      size: [0.1, 1.2, 1.2],
+      material: 'Neon',
+      color: [255, 60, 60],
+      anchored: true
+    });
+  });
+
+  return parts;
+}
+
+// -----------------------------------------------------------------------------
+// 6. ZONE 5 (SOUTHWEST): THE ELF-DWARF ARTIFICER SMITHY & LAPIDARY
+// -----------------------------------------------------------------------------
+function buildZone5ElfSmithy() {
+  const parts = [];
+  const sx = -32, sz = 24;
+
+  // Raised Flagstone Workshop Floor
+  parts.push({
+    name: 'Smithy_Floor_Slab',
+    className: 'Part',
+    position: [sx, 1.0, sz],
+    size: [22, 1.2, 24],
+    material: 'Slate',
+    color: C.stoneWallDark,
+    anchored: true
+  });
+
+  // Solid Stone Back & Side Enclosure (Castle wall integration)
+  parts.push({
+    name: 'Smithy_BackWall',
+    className: 'Part',
+    position: [sx - 10, 8.5, sz],
+    size: [2.5, 14, 24],
+    material: 'Cobblestone',
+    color: C.stoneWallLight,
+    anchored: true
+  });
+  parts.push({
+    name: 'Smithy_SideWall_South',
+    className: 'Part',
+    position: [sx, 8.5, sz + 11],
+    size: [22, 14, 2.5],
+    material: 'Cobblestone',
+    color: C.stoneWallLight,
+    anchored: true
+  });
+
+  // Vaulted Open Stone Arcade Pillars (Facing the Courtyard)
+  const arcadePillars = [sz - 9, sz, sz + 9];
+  arcadePillars.forEach((pz, idx) => {
+    parts.push({
+      name: `Smithy_ArcadePillar_${idx}`,
+      className: 'Part',
+      position: [sx + 9.5, 7.5, pz],
+      size: [2.4, 12, 2.4],
+      material: 'Slate',
+      color: C.stoneSlate,
+      anchored: true
+    });
+  });
+  // Arcade Heavy Stone Lintel & Vault Ceiling
+  parts.push({
+    name: 'Smithy_Arcade_Lintel',
+    className: 'Part',
+    position: [sx + 9.5, 14.0, sz],
+    size: [2.8, 2.0, 24],
+    material: 'Slate',
+    color: C.stoneWallDark,
+    anchored: true
+  });
+  parts.push({
+    name: 'Smithy_Vault_Ceiling',
+    className: 'Part',
+    position: [sx, 15.0, sz],
+    size: [22, 1.5, 25],
+    material: 'Slate',
+    color: C.roofLeadDark,
+    anchored: true
+  });
+
+  // ---------------------------------------------------------------------------
+  // The Roaring Arcane Forge Hearth & Chimney
+  // ---------------------------------------------------------------------------
+  const fx = sx - 6.5, fz = sz - 6.5;
+  // Hearth Stone Mantel
+  parts.push({
+    name: 'Forge_Hearth_Base',
+    className: 'Part',
+    position: [fx, 3.2, fz],
+    size: [6.5, 3.2, 6.5],
+    material: 'Slate',
+    color: C.stoneWallDark,
+    anchored: true
+  });
+  // Burning Coal Bed
+  parts.push({
+    name: 'Zone5_Forge_FireBed',
+    className: 'Part',
+    position: [fx, 4.9, fz],
+    size: [4.4, 0.4, 4.4],
+    material: 'Neon',
+    color: C.flameOuter,
+    anchored: true
+  });
+  parts.push({
+    className: 'PointLight',
+    name: 'Forge_OrangeGlow',
+    parentPart: 'Zone5_Forge_FireBed',
+    color: [255, 140, 40],
+    brightness: 3.4,
+    range: 24,
+    shadows: true
+  });
+  parts.push({
+    className: 'ParticleEmitter',
+    name: 'Forge_EmbersVFX',
+    parentPart: 'Zone5_Forge_FireBed',
+    rate: 30,
+    lifetime: [0.8, 2.0],
+    speed: [2.0, 4.5],
+    lightEmission: 0.95,
+    lightInfluence: 0.05
+  });
+
+  // Tapered Copper Smoke Hood with Iron Riveted Rim & Stone Chimney
+  parts.push({
+    name: 'Forge_SmokeHood_Rim',
+    className: 'Part',
+    position: [fx, 7.2, fz],
+    size: [7.2, 0.8, 7.2],
+    material: 'Metal',
+    color: C.ironBlack,
+    anchored: true
+  });
+  parts.push({
+    name: 'Forge_SmokeHood_Mid',
+    className: 'Part',
+    position: [fx, 8.8, fz],
+    size: [5.8, 2.4, 5.8],
+    material: 'Metal',
+    color: C.bronzeTrim,
+    anchored: true
+  });
+  parts.push({
+    name: 'Forge_SmokeHood_Top',
+    className: 'Part',
+    position: [fx, 10.4, fz],
+    size: [4.7, 1.2, 4.7],
+    material: 'Metal',
+    color: C.bronzeTrim,
+    anchored: true
+  });
+  parts.push({
+    name: 'Forge_Chimney_Rise',
+    className: 'Part',
+    position: [fx, 17.0, fz],
+    size: [4.5, 12.0, 4.5],
+    material: 'Cobblestone',
+    color: C.stoneWallDark,
+    anchored: true
+  });
+
+  // ---------------------------------------------------------------------------
+  // Anvil on Oak Stump & Quenching Trough
+  // ---------------------------------------------------------------------------
+  const ax = sx + 2.0, az = sz - 4.0;
+  // Ancient Oak Stump
+  parts.push({
+    name: 'Anvil_Stump',
+    className: 'Part',
+    position: [ax, 2.6, az],
+    size: [2.8, 2.2, 2.8],
+    material: 'Wood',
+    color: C.woodTrunk,
+    anchored: true
+  });
+  // Forged Steel Anvil
+  parts.push({
+    name: 'Zone5_Blacksmith_Anvil',
+    className: 'Part',
+    position: [ax, 4.2, az],
+    size: [1.8, 1.4, 3.6],
+    material: 'Metal',
+    color: C.ironBlack,
+    anchored: true
+  });
+  // Anvil Horn
+  parts.push({
+    name: 'Anvil_Horn',
+    className: 'Part',
+    position: [ax, 4.5, az + 2.3],
+    size: [1.0, 0.7, 1.2],
+    material: 'Metal',
+    color: C.ironBlack,
+    anchored: true
+  });
+
+  // Quenching Water Trough
+  parts.push({
+    name: 'Quench_Trough_Frame',
+    className: 'Part',
+    position: [ax - 4.5, 2.5, az],
+    size: [2.5, 2.0, 4.2],
+    material: 'Wood',
+    color: C.woodTimberDark,
+    anchored: true
+  });
+  parts.push({
+    name: 'Quench_Water_Surface',
+    className: 'Part',
+    position: [ax - 4.5, 3.3, az],
+    size: [2.1, 0.2, 3.8],
+    material: 'Glass',
+    color: [80, 160, 220],
+    transparency: 0.35,
+    anchored: true
+  });
+  parts.push({
+    className: 'ParticleEmitter',
+    name: 'Quench_Steam',
+    parentPart: 'Quench_Water_Surface',
+    rate: 10,
+    lifetime: [1.0, 2.5],
+    speed: [0.8, 2.0],
+    lightEmission: 0.2,
+    lightInfluence: 0.8
+  });
+
+  // ---------------------------------------------------------------------------
+  // Armorer's Display Stand: Breastplate & Helm
+  // ---------------------------------------------------------------------------
+  const rx = sx - 6.0, rz = sz + 5.0;
+  parts.push({
+    name: 'ArmorStand_Post',
+    className: 'Part',
+    position: [rx, 3.4, rz],
+    size: [0.5, 3.6, 0.5],
+    material: 'Wood',
+    color: C.woodPlankWarm,
+    anchored: true
+  });
+  // Knight Cuirass / Breastplate
+  parts.push({
+    name: 'Zone5_Armor_Cuirass',
+    className: 'Part',
+    position: [rx, 4.2, rz],
+    size: [1.8, 2.2, 1.4],
+    material: 'Metal',
+    color: C.silverSteel,
+    anchored: true
+  });
+  // Visored Knight Helm
+  parts.push({
+    name: 'Zone5_Armor_Helm',
+    className: 'Part',
+    position: [rx, 5.7, rz],
+    size: [1.3, 1.3, 1.3],
+    material: 'Metal',
+    color: C.silverSteel,
+    anchored: true
+  });
+
+  // ---------------------------------------------------------------------------
+  // Lapidary / Jeweler's Bench & 3 GLOWING RINGS
+  // ---------------------------------------------------------------------------
+  const jx = sx + 2.5, jz = sz + 5.0;
+  // Mahogany Gem Bench
+  parts.push({
+    name: 'Jeweler_Bench_Top',
+    className: 'Part',
+    position: [jx, 3.0, jz],
+    size: [3.4, 0.6, 7.0],
+    material: 'Wood',
+    color: C.woodTimberDark,
+    anchored: true
+  });
+  // Red Velvet Display Runner
+  parts.push({
+    name: 'Jeweler_Velvet_Cloth',
+    className: 'Part',
+    position: [jx, 3.35, jz],
+    size: [2.6, 0.15, 6.2],
+    material: 'Fabric',
+    color: [140, 20, 30],
+    anchored: true
+  });
+
+  // 3 Glowing Gem Rings on Velvet Display
+  const ringData = [
+    {
+      name: 'Zone5_Ring_Ruby',
+      label: 'Anillo de Rubí Ardiente',
+      offsetZ: -2.0,
+      gemColor: [245, 35, 45],
+      metalColor: C.goldRoyal
+    },
+    {
+      name: 'Zone5_Ring_Sapphire',
+      label: 'Anillo del Océano Abisal',
+      offsetZ: 0.0,
+      gemColor: [40, 140, 255],
+      metalColor: C.silverSteel
+    },
+    {
+      name: 'Zone5_Ring_Emerald',
+      label: 'Anillo de Vida Esmeralda',
+      offsetZ: 2.0,
+      gemColor: [35, 235, 95],
+      metalColor: C.goldRoyal
+    }
+  ];
+
+  ringData.forEach(rd => {
+    const rzPos = jz + rd.offsetZ;
+    // Ring Band
+    parts.push({
+      name: `${rd.name}_Band`,
+      className: 'Part',
+      position: [jx, 3.65, rzPos],
+      size: [0.7, 0.4, 0.7],
+      material: 'Metal',
+      color: rd.metalColor,
+      anchored: true
+    });
+    // Glowing Faceted Gem
+    parts.push({
+      name: `${rd.name}_Gem`,
+      className: 'Part',
+      position: [jx, 3.95, rzPos],
+      size: [0.45, 0.45, 0.45],
+      material: 'Neon',
+      color: rd.gemColor,
+      anchored: true
+    });
+    parts.push({
+      className: 'PointLight',
+      name: `${rd.name}_Glow`,
+      parentPart: `${rd.name}_Gem`,
+      color: rd.gemColor,
+      brightness: 1.8,
+      range: 8,
+      shadows: false
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // THE MASTER ELF-DWARF NPC ("Thistlebeard")
+  // Proportions: Compact (3.4 studs tall), pointy elf ears, braided dwarf beard,
+  // leather apron, holding a blacksmith hammer.
+  // ---------------------------------------------------------------------------
+  const nx = sx + 2.0, nz = sz - 1.2;
+  // Boots
+  parts.push({
+    name: 'ElfDwarf_Boot_L',
+    className: 'Part',
+    position: [nx - 0.45, 1.85, nz],
+    size: [0.55, 0.5, 0.7],
+    material: 'Metal',
+    color: C.woodTimberDark,
+    anchored: true
+  });
+  parts.push({
+    name: 'ElfDwarf_Boot_R',
+    className: 'Part',
+    position: [nx + 0.45, 1.85, nz],
+    size: [0.55, 0.5, 0.7],
+    material: 'Metal',
+    color: C.woodTimberDark,
+    anchored: true
+  });
+
+  // Legs & Trousers
+  parts.push({
+    name: 'ElfDwarf_Legs',
+    className: 'Part',
+    position: [nx, 2.3, nz],
+    size: [1.5, 0.6, 1.0],
+    material: 'Fabric',
+    color: [55, 75, 50],
+    anchored: true
+  });
+
+  // Torso & Green Artificer Tunic
+  parts.push({
+    name: 'ElfDwarf_Torso',
+    className: 'Part',
+    position: [nx, 3.1, nz],
+    size: [1.8, 1.2, 1.2],
+    material: 'Fabric',
+    color: C.tunicGreen,
+    anchored: true
+  });
+  // Leather Forge Apron on Chest
+  parts.push({
+    name: 'ElfDwarf_Apron',
+    className: 'Part',
+    position: [nx, 3.0, nz - 0.55],
+    size: [1.4, 1.3, 0.2],
+    material: 'Fabric',
+    color: C.apronLeather,
+    anchored: true
+  });
+
+  // Head (Compact & Expressive)
+  parts.push({
+    name: 'Zone5_ElfDwarf_NPC',
+    className: 'Part',
+    position: [nx, 4.0, nz],
+    size: [1.2, 1.0, 1.1],
+    material: 'SmoothPlastic',
+    color: C.skinElf,
+    anchored: true
+  });
+
+  // Pointed Elven Ears
+  parts.push({
+    name: 'ElfDwarf_Ear_L',
+    className: 'Part',
+    position: [nx - 0.75, 4.1, nz],
+    size: [0.4, 0.4, 0.2],
+    material: 'SmoothPlastic',
+    color: C.skinElf,
+    anchored: true
+  });
+  parts.push({
+    name: 'ElfDwarf_Ear_R',
+    className: 'Part',
+    position: [nx + 0.75, 4.1, nz],
+    size: [0.4, 0.4, 0.2],
+    material: 'SmoothPlastic',
+    color: C.skinElf,
+    anchored: true
+  });
+
+  // Braided Dwarven Beard
+  parts.push({
+    name: 'ElfDwarf_Beard',
+    className: 'Part',
+    position: [nx, 3.5, nz - 0.45],
+    size: [1.0, 0.8, 0.6],
+    material: 'Fabric',
+    color: C.beardDwarf,
+    anchored: true
+  });
+
+  // Blacksmith's Hammer in Hand
+  parts.push({
+    name: 'ElfDwarf_Hammer_Handle',
+    className: 'Part',
+    position: [nx + 1.1, 2.9, nz - 0.2],
+    size: [0.2, 1.4, 0.2],
+    material: 'Wood',
+    color: C.woodTimberDark,
+    anchored: true
+  });
+  parts.push({
+    name: 'ElfDwarf_Hammer_Head',
+    className: 'Part',
+    position: [nx + 1.1, 3.6, nz - 0.2],
+    size: [0.5, 0.5, 0.8],
+    material: 'Metal',
+    color: C.ironBlack,
+    anchored: true
+  });
+
+  return parts;
+}
+
+// -----------------------------------------------------------------------------
+// 7. SURROUNDING NATURE: DENSE FORBIDDEN FOREST & CASTLE WALLS
+// -----------------------------------------------------------------------------
+function buildSurroundingEnclosure() {
   const parts = [];
 
-  // Central Bonfire in Courtyard
-  parts.push(...createBonfire('Central_Bonfire', [0, 0.2, 12]));
-
-  // Directional Signpost
-  const sx = 0, sz = 5;
+  // Perimeter High Castle Curtain Walls (Enclosing West, East, North backdrop)
+  // North Outer Wall Behind Gatehouse
   parts.push({
-    name: 'Signpost_Shaft',
+    name: 'OuterWall_North_L',
     className: 'Part',
-    position: [sx, 4, sz],
-    size: [0.8, 7.5, 0.8],
-    material: 'Wood',
-    color: C.woodDark,
+    position: [-35, 10, -62],
+    size: [40, 20, 4.0],
+    material: 'Cobblestone',
+    color: C.stoneWallDark,
     anchored: true
   });
   parts.push({
-    name: 'Signpost_Finial',
+    name: 'OuterWall_North_R',
     className: 'Part',
-    shape: 'Ball',
-    position: [sx, 8.0, sz],
-    size: [1.2, 1.2, 1.2],
-    material: 'Metal',
-    color: C.goldTrim,
+    position: [35, 10, -62],
+    size: [40, 20, 4.0],
+    material: 'Cobblestone',
+    color: C.stoneWallDark,
+    anchored: true
+  });
+  // West Outer Wall Behind Apothecary & Smithy
+  parts.push({
+    name: 'OuterWall_West',
+    className: 'Part',
+    position: [-52, 9, -10],
+    size: [4.0, 18, 105],
+    material: 'Cobblestone',
+    color: C.stoneWallDark,
+    anchored: true
+  });
+  // East Outer Wall Behind Vault & Arena
+  parts.push({
+    name: 'OuterWall_East',
+    className: 'Part',
+    position: [52, 9, -10],
+    size: [4.0, 18, 105],
+    material: 'Cobblestone',
+    color: C.stoneWallDark,
     anchored: true
   });
 
-  // 5 Directional Boards
-  const signs = [
-    { name: 'Sign_Portal', y: 7.2, offX: 0, offZ: -1.2, size: [0.4, 0.8, 3.2], color: C.roofShingleBlue },
-    { name: 'Sign_Crates', y: 6.3, offX: 1.2, offZ: 0, size: [3.2, 0.8, 0.4], color: C.goldTrim },
-    { name: 'Sign_Potions', y: 5.4, offX: -1.2, offZ: 0, size: [3.2, 0.8, 0.4], color: C.potionGreen },
-    { name: 'Sign_Dueling', y: 4.5, offX: 1.0, offZ: 1.0, size: [2.8, 0.8, 0.4], color: C.roofShingleRed },
-    { name: 'Sign_Forge', y: 3.6, offX: -1.0, offZ: 1.0, size: [2.8, 0.8, 0.4], color: C.ironDark }
-  ];
-  signs.forEach((s) => {
-    parts.push({
-      name: s.name,
+  // ---------------------------------------------------------------------------
+  // Dense Procedural Pine & Twisted Oak Trees in the Surrounding Woods
+  // ---------------------------------------------------------------------------
+  function createPineTree(name, pos, scale = 1.0) {
+    const [x, y, z] = pos;
+    const treeParts = [];
+
+    const trunkH = 8 * scale;
+    const trunkW = 1.8 * scale;
+
+    // Trunk
+    treeParts.push({
+      name: `${name}_Trunk`,
       className: 'Part',
-      position: [sx + s.offX, s.y, sz + s.offZ],
-      size: s.size,
-      material: 'WoodPlanks',
-      color: s.color,
+      position: [x, y + trunkH / 2, z],
+      size: [trunkW, trunkH, trunkW],
+      material: 'Wood',
+      color: C.barkPine,
       anchored: true
     });
+
+    // 4 Conical Tiers of Dense Pine Needles (Block-based staggered foliage)
+    const tiers = [
+      { yOffset: trunkH * 0.65, size: 13.0 * scale, height: 4.5 * scale, color: C.pineDark1 },
+      { yOffset: trunkH * 1.0,  size: 10.5 * scale, height: 4.2 * scale, color: C.pineDark2 },
+      { yOffset: trunkH * 1.35, size: 7.8 * scale,  height: 3.8 * scale, color: C.pineLight },
+      { yOffset: trunkH * 1.7,  size: 4.8 * scale,  height: 3.5 * scale, color: C.pineLight },
+      { yOffset: trunkH * 2.05, size: 2.2 * scale,  height: 2.8 * scale, color: C.pineLight }
+    ];
+
+    tiers.forEach((t, idx) => {
+      treeParts.push({
+        name: `${name}_Foliage_${idx}`,
+        className: 'Part',
+        position: [x, y + t.yOffset, z],
+        size: [t.size, t.height, t.size],
+        material: 'Grass',
+        color: t.color,
+        anchored: true
+      });
+    });
+
+    return treeParts;
+  }
+
+  // Tree coordinates around the perimeter walls (dense ring)
+  const forestCoords = [
+    // North Behind Castle Gate
+    [-45, 0, -68, 1.4], [-30, 0, -70, 1.2], [-15, 0, -72, 1.5],
+    [15, 0, -72, 1.5], [30, 0, -70, 1.3], [45, 0, -68, 1.4],
+    // West Behind Shops
+    [-60, 0, -45, 1.3], [-62, 0, -25, 1.5], [-60, 0, -5, 1.2],
+    [-63, 0, 15, 1.4], [-60, 0, 35, 1.3],
+    // East Behind Vault & Arena
+    [60, 0, -45, 1.4], [62, 0, -25, 1.2], [60, 0, -5, 1.5],
+    [63, 0, 15, 1.3], [60, 0, 35, 1.4],
+    // South Approach
+    [-35, 0, 52, 1.2], [-18, 0, 54, 1.3], [18, 0, 54, 1.3], [35, 0, 52, 1.2]
+  ];
+
+  forestCoords.forEach(([tx, ty, tz, scale], idx) => {
+    parts.push(...createPineTree(`ForestTree_${idx}`, [tx, ty, tz], scale));
   });
 
-  // Plaza Perimeter Torches
-  const plazaTorches = [
-    [-18, 0.2, -18], [18, 0.2, -18],
-    [-20, 0.2, 0], [20, 0.2, 0],
-    [-18, 0.2, 18], [18, 0.2, 18]
+  // Mossy Granite Boulders scattered in the woods
+  const boulderCoords = [
+    [-48, 1.5, -55, 6, 3, 5],
+    [48, 1.5, -55, 5, 3.5, 5],
+    [-55, 1.2, 5, 5, 2.5, 4],
+    [55, 1.2, 5, 4.5, 2.8, 5]
   ];
-  plazaTorches.forEach(([tx, ty, tz], idx) => {
-    parts.push(...createTorch(`Plaza_Torch_${idx}`, [tx, ty, tz]));
-  });
-
-  // Player Safe Spawns
-  const spawns = [
-    [-6, 1.0, 18], [6, 1.0, 18],
-    [-8, 1.0, 12], [8, 1.0, 12]
-  ];
-  spawns.forEach(([spx, spy, spz], idx) => {
+  boulderCoords.forEach(([bx, by, bz, sx, sy, sz], idx) => {
     parts.push({
-      name: `LobbySpawn_${idx}`,
+      name: `Boulder_${idx}`,
       className: 'Part',
-      position: [spx, spy, spz],
-      size: [4, 0.4, 4],
-      material: 'Cobblestone',
-      color: C.stoneLight,
+      position: [bx, by, bz],
+      size: [sx, sy, sz],
+      material: 'Slate',
+      color: [85, 90, 82], // Mossy stone
       anchored: true
     });
   });
@@ -1841,76 +2457,173 @@ function buildTownSquareDetails() {
 }
 
 // -----------------------------------------------------------------------------
-// MASTER EXECUTION
+// 8. SPAWN LOCATION & ENTRANCE VESTIBULE (SOUTH)
 // -----------------------------------------------------------------------------
-async function main() {
-  console.log('===============================================================');
-  console.log('🏰 RAASE 2.1 — REBUILDING MAGIC LOBBY (V2 HIGH-FIDELITY)');
-  console.log('===============================================================');
+function buildSpawnAndEntrance() {
+  const parts = [];
+  const sx = 0, sz = 40;
 
-  // Clear existing models
-  const modelList = [
-    'MagicLobby_Plaza',
-    'MagicLobby_Zone1_Matchmaking',
-    'MagicLobby_Castle',
-    'MagicLobby_Zone2_CratesVault',
-    'MagicLobby_Zone3_PotionShop',
-    'MagicLobby_Zone4_SpellRange',
-    'MagicLobby_Zone5_ElfForge',
-    'MagicLobby_Houses',
-    'MagicLobby_EnchantedForest',
-    'MagicLobby_Details'
-  ];
-  for (const m of modelList) {
-    await deleteModel(m);
-  }
+  // Dedicated Spawn Platform
+  parts.push({
+    name: 'Spawn_Dais_Base',
+    className: 'Part',
+    position: [sx, 0.4, sz],
+    size: [16, 0.6, 12],
+    material: 'Slate',
+    color: C.stoneWallDark,
+    anchored: true
+  });
+  parts.push({
+    name: 'Spawn_Runic_Inlay',
+    className: 'Part',
+    position: [sx, 0.75, sz],
+    size: [12, 0.15, 8],
+    material: 'Cobblestone',
+    color: C.stoneStreet,
+    anchored: true
+  });
 
-  // 1. Plaza
-  const plaza = buildPlazaAndPaths();
-  await spawnBatch('MagicLobby_Plaza', plaza);
+  // The actual Roblox SpawnLocation
+  parts.push({
+    name: 'Lobby_SpawnLocation',
+    className: 'SpawnLocation',
+    position: [sx, 1.2, sz],
+    size: [6, 0.5, 6],
+    material: 'Neon',
+    color: C.magicCyan,
+    transparency: 0.75,
+    anchored: true
+  });
 
-  // 2. Zone 1: Matchmaking Portal
-  const zone1 = buildZone1Matchmaking();
-  await spawnBatch('MagicLobby_Zone1_Matchmaking', zone1);
+  // Welcome Arch & Flanking Braziers
+  parts.push({
+    name: 'Spawn_Arch_L',
+    className: 'Part',
+    position: [sx - 7.5, 5.0, sz],
+    size: [1.8, 8.5, 1.8],
+    material: 'Slate',
+    color: C.stoneSlate,
+    anchored: true
+  });
+  parts.push({
+    name: 'Spawn_Arch_R',
+    className: 'Part',
+    position: [sx + 7.5, 5.0, sz],
+    size: [1.8, 8.5, 1.8],
+    material: 'Slate',
+    color: C.stoneSlate,
+    anchored: true
+  });
+  parts.push({
+    name: 'Spawn_Arch_Header',
+    className: 'Part',
+    position: [sx, 9.5, sz],
+    size: [16.8, 1.6, 2.0],
+    material: 'Slate',
+    color: C.stoneWallDark,
+    anchored: true
+  });
 
-  // 3. Castle Towers & Walls
-  const castle = buildCastleWalls();
-  await spawnBatch('MagicLobby_Castle', castle);
+  // Entrance Braziers
+  parts.push(...createFreeTorch('Spawn_Brazier_L', [sx - 7.5, 10.3, sz]));
+  parts.push(...createFreeTorch('Spawn_Brazier_R', [sx + 7.5, 10.3, sz]));
 
-  // 4. Zone 2: Crates Vault
-  const zone2 = buildZone2Crates();
-  await spawnBatch('MagicLobby_Zone2_CratesVault', zone2);
-
-  // 5. Zone 3: Potion Shop
-  const zone3 = buildZone3Potions();
-  await spawnBatch('MagicLobby_Zone3_PotionShop', zone3);
-
-  // 6. Zone 4: Spell Testing Range
-  const zone4 = buildZone4SpellRange();
-  await spawnBatch('MagicLobby_Zone4_SpellRange', zone4);
-
-  // 7. Zone 5: Elf Forge
-  const zone5 = buildZone5ElfForge();
-  await spawnBatch('MagicLobby_Zone5_ElfForge', zone5);
-
-  // 8. Village Houses
-  const houses = buildVillageHouses();
-  await spawnBatch('MagicLobby_Houses', houses);
-
-  // 9. Enchanted Forest
-  const forest = buildEnchantedForest();
-  await spawnBatch('MagicLobby_EnchantedForest', forest);
-
-  // 10. Town Details & Torches
-  const details = buildTownSquareDetails();
-  await spawnBatch('MagicLobby_Details', details);
-
-  console.log('===============================================================');
-  console.log('✨ REBUILD COMPLETE WITH 100% STABLE GEOMETRY & MAXIMUM DETAIL!');
-  console.log('===============================================================');
+  return parts;
 }
 
-main().catch((err) => {
-  console.error('❌ Rebuild failed:', err);
+// -----------------------------------------------------------------------------
+// LIGHTING SETUP (WARM, BRIGHT DAYLIGHT & CRISP SHADOWS)
+// -----------------------------------------------------------------------------
+async function configureLighting() {
+  console.log('☀️ Configuring clear daylight with warm sun and crisp shadows...');
+  const lua = `
+    local Lighting = game:GetService("Lighting")
+    Lighting.ClockTime = 15.8
+    Lighting.Brightness = 2.8
+    Lighting.OutdoorAmbient = Color3.fromRGB(140, 140, 148)
+    Lighting.Ambient = Color3.fromRGB(80, 80, 85)
+    Lighting.GeographicLatitude = 42
+    Lighting.GlobalShadows = true
+    Lighting.ExposureCompensation = 0.15
+
+    -- Remove any dark foggy atmosphere
+    local existingAtm = Lighting:FindFirstChildOfClass("Atmosphere")
+    if existingAtm then
+      existingAtm:Destroy()
+    end
+
+    local atm = Instance.new("Atmosphere")
+    atm.Density = 0.22
+    atm.Offset = 0.1
+    atm.Color = Color3.fromRGB(200, 208, 220)
+    atm.Decay = Color3.fromRGB(110, 115, 125)
+    atm.Glare = 0.1
+    atm.Haze = 0.4
+    atm.Parent = Lighting
+
+    local existingBloom = Lighting:FindFirstChildOfClass("BloomEffect")
+    if existingBloom then
+      existingBloom:Destroy()
+    end
+
+    local bloom = Instance.new("BloomEffect")
+    bloom.Intensity = 0.12
+    bloom.Size = 10
+    bloom.Threshold = 2.2
+    bloom.Parent = Lighting
+
+    return "Lighting configured successfully"
+  `;
+  await sendCommand('EXECUTE_LUAU', { code: lua }, true);
+}
+
+// -----------------------------------------------------------------------------
+// MAIN EXECUTION PIPELINE
+// -----------------------------------------------------------------------------
+async function main() {
+  console.log('🏰 ========================================================');
+  console.log('   RAASE 2.1 — Harry Potter Reimagined Citadel Lobby (V3)   ');
+  console.log('========================================================');
+
+  // 1. Wipe old legacy models if any exist
+  await deleteModel('MagicLobby');
+  await deleteModel('MagicLobby_V2');
+  await deleteModel('MagicLobby_V3');
+
+  // 2. Set Lighting
+  await configureLighting();
+
+  // 3. Assemble Architecture
+  console.log('🔨 Assembling architectural sections...');
+  const pavementParts = buildUrbanPavement();
+  const zone1Parts = buildZone1CastlePortal();
+  const zone2Parts = buildZone2CratesVault();
+  const zone3Parts = buildZone3Apothecary();
+  const zone4Parts = buildZone4DuelingArena();
+  const zone5Parts = buildZone5ElfSmithy();
+  const enclosureParts = buildSurroundingEnclosure();
+  const spawnParts = buildSpawnAndEntrance();
+
+  const totalParts = [
+    ...pavementParts,
+    ...zone1Parts,
+    ...zone2Parts,
+    ...zone3Parts,
+    ...zone4Parts,
+    ...zone5Parts,
+    ...enclosureParts,
+    ...spawnParts
+  ];
+
+  console.log(`✨ Total instances generated: ${totalParts.length}`);
+
+  // 4. Batch Spawn into Studio
+  await spawnBatch('MagicLobby_V3', totalParts, 'workspace');
+
+  console.log('🎉 Citadel Lobby V3 successfully built in Roblox Studio!');
+}
+
+main().catch(err => {
+  console.error('❌ Build failed:', err);
   process.exit(1);
 });

@@ -1,14 +1,14 @@
 --!strict
 --[[
     LobbyInteractionService.luau
-    RAASE 2.0 / robloxIA — Harry Potter Medieval Magic Lobby Interactive Controller
+    RAASE 2.1 — Harry Potter Citadel Medieval Magic Lobby Interactive Controller (V3)
     
-    Coordinates the 5 key functional zones:
+    Coordinates the 5 functional zones directly from MagicLobby_V3 and MagicLobby_V3_Interactions:
       1. Matchmaking Portal Queue (Zone 1)
       2. Crates & Key Vault Opening with Loot Drops (Zone 2)
       3. Potion Shop & Apothecary Alchemy Drinking Effects (Zone 3)
-      4. Spell Testing Range & Reactive Combat Mannequins (Zone 4)
-      5. Elf-Dwarf Blacksmith Armor & Ring Enhancer (Zone 5)
+      4. Spell Testing Range & Reactive Combat Mannequins with Damage Popups (Zone 4)
+      5. Elf-Dwarf Blacksmith ("Thistlebeard") Armor & Ring Enhancements (Zone 5)
 --]]
 
 local Workspace = game:GetService("Workspace")
@@ -21,7 +21,7 @@ LobbyInteractionService.__index = LobbyInteractionService
 
 export type LobbyService = typeof(setmetatable({} :: {
 	queuedPlayers: { [Player]: boolean },
-	playerKeys: { [Player]: { common: number, ancient: number, relic: number } },
+	playerKeys: { [Player]: { common: number, rare: number, legendary: number } },
 	dummyHealths: { [string]: { current: number, max: number } },
 }, LobbyInteractionService))
 
@@ -30,9 +30,9 @@ function LobbyInteractionService.new(): LobbyService
 		queuedPlayers = {},
 		playerKeys = {},
 		dummyHealths = {
-			["Dummy_Apprentice"] = { current = 100, max = 100 },
-			["Dummy_BattleMage"] = { current = 250, max = 250 },
-			["Dummy_ArchMage"] = { current = 500, max = 500 },
+			["Apprentice"] = { current = 100, max = 100 },
+			["Battle"] = { current = 500, max = 500 },
+			["Archmage"] = { current = 2000, max = 2000 },
 		},
 	}, LobbyInteractionService)
 
@@ -43,8 +43,8 @@ end
 local function showFloatingText(part: BasePart, text: string, color: Color3)
 	local bb = Instance.new("BillboardGui")
 	bb.Name = "FloatingNotice"
-	bb.Size = UDim2.new(4, 0, 1.2, 0)
-	bb.StudsOffset = Vector3.new(0, 2.5, 0)
+	bb.Size = UDim2.new(5, 0, 1.4, 0)
+	bb.StudsOffset = Vector3.new(0, 3.0, 0)
 	bb.AlwaysOnTop = true
 
 	local label = Instance.new("TextLabel")
@@ -58,14 +58,13 @@ local function showFloatingText(part: BasePart, text: string, color: Color3)
 	label.Parent = bb
 	bb.Parent = part
 
-	-- Float and fade tween
-	local tweenInfo = TweenInfo.new(1.4, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-	local tween = TweenService:Create(bb, tweenInfo, { StudsOffset = Vector3.new(0, 5.0, 0) })
+	local tweenInfo = TweenInfo.new(1.6, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+	local tween = TweenService:Create(bb, tweenInfo, { StudsOffset = Vector3.new(0, 5.5, 0) })
 	local textTween = TweenService:Create(label, tweenInfo, { TextTransparency = 1 })
 	tween:Play()
 	textTween:Play()
 
-	task.delay(1.5, function()
+	task.delay(1.7, function()
 		bb:Destroy()
 	end)
 end
@@ -84,106 +83,63 @@ local function playSoundAt(part: BasePart, soundId: string, volume: number?)
 end
 
 function LobbyInteractionService:Init()
-	print("[LobbyInteractionService] Initializing Harry Potter Magic Lobby interactions...")
+	print("[LobbyInteractionService] 🏰 Initializing Harry Potter Citadel Lobby interactions (V3)...")
 
-	-- Setup player keys default state
 	Players.PlayerAdded:Connect(function(player: Player)
-		self.playerKeys[player] = { common = 3, ancient = 2, relic = 1 }
+		self.playerKeys[player] = { common = 3, rare = 2, legendary = 1 }
 	end)
 	Players.PlayerRemoving:Connect(function(player: Player)
 		self.playerKeys[player] = nil
 		self.queuedPlayers[player] = nil
 	end)
 
-	-- 1. Setup Zone 1: Matchmaking Portal Queue
-	self:SetupMatchmakingPortal()
+	-- Wait for interaction container or search workspace
+	task.spawn(function()
+		local interactions = Workspace:WaitForChild("MagicLobby_V3_Interactions", 10)
+		self:SetupAllInteractions(interactions)
+	end)
 
-	-- 2. Setup Zone 2: Crates & Key Vault
-	self:SetupCratesVault()
+	print("[LobbyInteractionService] ✅ All 5 functional magic zones wired to server logic!")
+end
 
-	-- 3. Setup Zone 3: Potion Shop
-	self:SetupPotionShop()
-
-	-- 4. Setup Zone 4: Combat Mannequins
-	self:SetupCombatMannequins()
-
-	-- 5. Setup Zone 5: Elf-Dwarf Blacksmith
-	self:SetupElfBlacksmith()
-
-	print("[LobbyInteractionService] ✅ All 5 functional magic zones are fully interactive!")
+function LobbyInteractionService:SetupAllInteractions(container: Instance?)
+	self:SetupZone1Portal(container)
+	self:SetupZone2Crates(container)
+	self:SetupZone3Potions(container)
+	self:SetupZone4Dueling(container)
+	self:SetupZone5Smithy(container)
 end
 
 --------------------------------------------------------------------------------
 -- ZONE 1: MATCHMAKING PORTAL
 --------------------------------------------------------------------------------
-function LobbyInteractionService:SetupMatchmakingPortal()
-	local portalModel = Workspace:FindFirstChild("MagicLobby_Zone1_Matchmaking")
-	if not portalModel then return end
+function LobbyInteractionService:SetupZone1Portal(container: Instance?)
+	local trigger = (container and container:FindFirstChild("Trigger_Zone1_Matchmaking"))
+		or Workspace:FindFirstChild("Trigger_Zone1_Matchmaking", true) :: BasePart?
 
-	local queuePad = portalModel:FindFirstChild("Portal_Queue_Pad") :: BasePart?
-	if not queuePad then return end
+	if not trigger then return end
 
-	-- Overhead Status Display
-	local bb = Instance.new("BillboardGui")
-	bb.Name = "PortalStatusGui"
-	bb.Size = UDim2.new(7, 0, 2.5, 0)
-	bb.StudsOffset = Vector3.new(0, 5, 0)
-	bb.AlwaysOnTop = true
-	bb.Parent = queuePad
-
-	local title = Instance.new("TextLabel")
-	title.Name = "Title"
-	title.Size = UDim2.new(1, 0, 0.5, 0)
-	title.BackgroundTransparency = 1
-	title.Text = "🔮 PORTAL DE DUELOS MÁGICOS"
-	title.TextColor3 = Color3.fromRGB(110, 215, 255)
-	title.Font = Enum.Font.GothamBold
-	title.TextSize = 18
-	title.Parent = bb
-
-	local queueCountLabel = Instance.new("TextLabel")
-	queueCountLabel.Name = "CountLabel"
-	queueCountLabel.Size = UDim2.new(1, 0, 0.45, 0)
-	queueCountLabel.Position = UDim2.new(0, 0, 0.52, 0)
-	queueCountLabel.BackgroundTransparency = 1
-	queueCountLabel.Text = "En cola: 0 / 4 Hechiceros"
-	queueCountLabel.TextColor3 = Color3.fromRGB(240, 245, 255)
-	queueCountLabel.Font = Enum.Font.GothamMedium
-	queueCountLabel.TextSize = 14
-	queueCountLabel.Parent = bb
-
-	-- Proximity Prompt
-	local prompt = Instance.new("ProximityPrompt")
-	prompt.ActionText = "Entrar / Salir de Cola"
-	prompt.ObjectText = "Portal de Batalla"
-	prompt.HoldDuration = 0.5
-	prompt.MaxActivationDistance = 14
-	prompt.RequiresLineOfSight = false
-	prompt.Parent = queuePad
+	local prompt = trigger:FindFirstChildOfClass("ProximityPrompt")
+	if not prompt then return end
 
 	prompt.Triggered:Connect(function(player: Player)
 		if self.queuedPlayers[player] then
 			self.queuedPlayers[player] = nil
-			showFloatingText(queuePad, string.format("❌ %s salió de la cola", player.DisplayName), Color3.fromRGB(255, 120, 120))
-			playSoundAt(queuePad, "rbxassetid://9114221804", 0.5)
+			showFloatingText(trigger, string.format("❌ %s salió de la cola de batalla", player.DisplayName), Color3.fromRGB(255, 120, 120))
+			playSoundAt(trigger, "rbxassetid://9114221804", 0.6)
 		else
 			self.queuedPlayers[player] = true
-			showFloatingText(queuePad, string.format("⚔️ %s se unió a la cola!", player.DisplayName), Color3.fromRGB(100, 255, 150))
-			playSoundAt(queuePad, "rbxassetid://9114223175", 0.8)
+			showFloatingText(trigger, string.format("⚔️ %s se unió a la cola de duelo!", player.DisplayName), Color3.fromRGB(110, 230, 255))
+			playSoundAt(trigger, "rbxassetid://9114223175", 0.9)
 		end
 
 		local count = 0
 		for _ in pairs(self.queuedPlayers) do count += 1 end
-		queueCountLabel.Text = string.format("En cola: %d / 4 Hechiceros", count)
 
 		if count >= 4 then
-			title.Text = "⚡ INICIANDO PARTIDA..."
-			title.TextColor3 = Color3.fromRGB(255, 220, 70)
-			task.delay(3.0, function()
-				title.Text = "🔮 PORTAL DE DUELOS MÁGICOS"
-				title.TextColor3 = Color3.fromRGB(110, 215, 255)
+			showFloatingText(trigger, "⚡ ¡PARTIDA ENCONTRADA! Teletransportando hechiceros...", Color3.fromRGB(255, 220, 80))
+			task.delay(2.5, function()
 				self.queuedPlayers = {}
-				queueCountLabel.Text = "En cola: 0 / 4 Hechiceros"
 			end)
 		end
 	end)
@@ -191,123 +147,99 @@ end
 
 --------------------------------------------------------------------------------
 -- ZONE 2: CRATES & KEYS VAULT
--- -----------------------------------------------------------------------------
-function LobbyInteractionService:SetupCratesVault()
-	local vaultModel = Workspace:FindFirstChild("MagicLobby_Zone2_CratesVault")
-	if not vaultModel then return end
-
-	local chestConfigs = {
+--------------------------------------------------------------------------------
+function LobbyInteractionService:SetupZone2Crates(container: Instance?)
+	local crateConfigs = {
 		{
-			bodyName = "Crate_Body_Common",
+			triggerName = "Trigger_Zone2_Crate_Common",
 			keyType = "common",
-			title = "Cofre Común de Madera",
-			color = Color3.fromRGB(120, 200, 255),
-			drops = { "Varita de Roble Rúnico", "50 Monedas Mágicas", "Poción Menor de Salud" }
+			title = "Cofre de Roble",
+			color = Color3.fromRGB(240, 200, 120),
+			drops = { "Varita de Roble Rúnico", "100 Monedas de Plata", "Poción Menor de Salud" }
 		},
 		{
-			bodyName = "Crate_Body_Ancient",
-			keyType = "ancient",
-			title = "Bóveda Ancestral de Hierro",
-			color = Color3.fromRGB(190, 110, 255),
+			triggerName = "Trigger_Zone2_Crate_Rare",
+			keyType = "rare",
+			title = "Bóveda de Hierro Rúnico",
+			color = Color3.fromRGB(100, 220, 255),
 			drops = { "Tomo de Fuego Valyrio", "Anillo de Zafiro del Viento", "Manto de Protección Arcana" }
 		},
 		{
-			bodyName = "Crate_Body_RelicGold",
-			keyType = "relic",
-			title = "Reliquia Sagrada de Oro",
-			color = Color3.fromRGB(255, 220, 80),
+			triggerName = "Trigger_Zone2_Crate_Legendary",
+			keyType = "legendary",
+			title = "Reliquia Real Arcana",
+			color = Color3.fromRGB(255, 225, 75),
 			drops = { "Varita de Fénix Legendaria", "Corona Rúnica del Archmago", "5000 Monedas de Oro" }
 		}
 	}
 
-	for _, cfg in ipairs(chestConfigs) do
-		local chestPart = vaultModel:FindFirstChild(cfg.bodyName) :: BasePart?
-		if chestPart then
-			local prompt = Instance.new("ProximityPrompt")
-			prompt.ActionText = "Abrir Cofre"
-			prompt.ObjectText = cfg.title
-			prompt.HoldDuration = 0.8
-			prompt.MaxActivationDistance = 10
-			prompt.RequiresLineOfSight = false
-			prompt.Parent = chestPart
+	for _, cfg in ipairs(crateConfigs) do
+		local trigger = (container and container:FindFirstChild(cfg.triggerName))
+			or Workspace:FindFirstChild(cfg.triggerName, true) :: BasePart?
 
-			prompt.Triggered:Connect(function(player: Player)
-				local keys = self.playerKeys[player]
-				local keyCount = keys and (keys :: any)[cfg.keyType] or 1
+		if trigger then
+			local prompt = trigger:FindFirstChildOfClass("ProximityPrompt")
+			if prompt then
+				prompt.Triggered:Connect(function(player: Player)
+					local keys = self.playerKeys[player]
+					local keyCount = keys and (keys :: any)[cfg.keyType] or 1
 
-				if keyCount > 0 then
-					if keys then
-						(keys :: any)[cfg.keyType] = keyCount - 1
+					if keyCount > 0 then
+						if keys then
+							(keys :: any)[cfg.keyType] = keyCount - 1
+						end
+						local reward = cfg.drops[math.random(1, #cfg.drops)]
+						playSoundAt(trigger, "rbxassetid://9114221528", 0.9)
+						showFloatingText(trigger, string.format("✨ ¡Recompensa: %s!", reward), cfg.color)
+					else
+						showFloatingText(trigger, "🔒 ¡Necesitas más llaves para abrir este cofre!", Color3.fromRGB(255, 90, 90))
+						playSoundAt(trigger, "rbxassetid://9114221804", 0.5)
 					end
-					local reward = cfg.drops[math.random(1, #cfg.drops)]
-					playSoundAt(chestPart, "rbxassetid://9114221528", 0.8)
-					showFloatingText(chestPart, string.format("✨ ¡Recompensa: %s!", reward), cfg.color)
-				else
-					showFloatingText(chestPart, "🔒 ¡Necesitas más llaves!", Color3.fromRGB(255, 90, 90))
-					playSoundAt(chestPart, "rbxassetid://9114221804", 0.5)
-				end
-			end)
+				end)
+			end
 		end
 	end
 end
 
 --------------------------------------------------------------------------------
--- ZONE 3: POTIONS APOTHECARY SHOP
+-- ZONE 3: POTIONS APOTHECARY & PORCH CAULDRON
 --------------------------------------------------------------------------------
-function LobbyInteractionService:SetupPotionShop()
-	local potionModel = Workspace:FindFirstChild("MagicLobby_Zone3_PotionShop")
-	if not potionModel then return end
+function LobbyInteractionService:SetupZone3Potions(container: Instance?)
+	-- Cauldron Trigger
+	local cauldronTrigger = (container and container:FindFirstChild("Trigger_Zone3_Cauldron"))
+		or Workspace:FindFirstChild("Trigger_Zone3_Cauldron", true) :: BasePart?
 
-	-- Cauldron Interaction
-	local cauldron = potionModel:FindFirstChild("Cauldron_Liquid") :: BasePart?
-	if cauldron then
-		local prompt = Instance.new("ProximityPrompt")
-		prompt.ActionText = "Preparar Brebaje Mágico"
-		prompt.ObjectText = "Gran Caldero Borboteante"
-		prompt.HoldDuration = 1.0
-		prompt.MaxActivationDistance = 10
-		prompt.RequiresLineOfSight = false
-		prompt.Parent = cauldron
-
-		prompt.Triggered:Connect(function(player: Player)
-			local char = player.Character
-			if char then
-				local hum = char:FindFirstChildOfClass("Humanoid")
-				if hum then
-					hum.Health = hum.MaxHealth
-					hum.WalkSpeed = 24
-					task.delay(15, function()
-						if hum then hum.WalkSpeed = 16 end
-					end)
+	if cauldronTrigger then
+		local prompt = cauldronTrigger:FindFirstChildOfClass("ProximityPrompt")
+		if prompt then
+			prompt.Triggered:Connect(function(player: Player)
+				local char = player.Character
+				if char then
+					local hum = char:FindFirstChildOfClass("Humanoid")
+					if hum then
+						hum.Health = hum.MaxHealth
+						hum.WalkSpeed = 24
+						task.delay(15, function()
+							if hum then hum.WalkSpeed = 16 end
+						end)
+					end
 				end
-			end
-			playSoundAt(cauldron, "rbxassetid://9114223784", 0.9)
-			showFloatingText(cauldron, "🧪 ¡Brebaje consumido: Salud máxima y +50% Velocidad!", Color3.fromRGB(80, 255, 120))
-		end)
+				playSoundAt(cauldronTrigger, "rbxassetid://9114223784", 0.9)
+				showFloatingText(cauldronTrigger, "🍵 ¡Brebaje Mágico: Salud Restaurada & +50% Velocidad!", Color3.fromRGB(60, 255, 120))
+			end)
+		end
 	end
 
-	-- Potion Flasks on Shelves
-	local potionTypes = {
-		{ name = "Flask_L1_0", title = "Poción de Vida", effect = "Cura instantánea", color = Color3.fromRGB(255, 80, 90) },
-		{ name = "Flask_L1_1", title = "Elixir de Maná", effect = "Poder arcano +100%", color = Color3.fromRGB(80, 160, 255) },
-		{ name = "Flask_L1_2", title = "Poción de Velocidad", effect = "Velocidad felina", color = Color3.fromRGB(80, 255, 100) },
-		{ name = "Flask_L1_3", title = "Poción de Invisibilidad", effect = "Invisibilidad x 10s", color = Color3.fromRGB(200, 90, 255) },
-	}
+	-- Potion Shop Shelf Trigger
+	local shopTrigger = (container and container:FindFirstChild("Trigger_Zone3_PotionShop"))
+		or Workspace:FindFirstChild("Trigger_Zone3_PotionShop", true) :: BasePart?
 
-	for _, pt in ipairs(potionTypes) do
-		local flask = potionModel:FindFirstChild(pt.name) :: BasePart?
-		if flask then
-			local prompt = Instance.new("ProximityPrompt")
-			prompt.ActionText = "Tomar " .. pt.title
-			prompt.ObjectText = "Estante de Pociones"
-			prompt.HoldDuration = 0.4
-			prompt.MaxActivationDistance = 8
-			prompt.RequiresLineOfSight = false
-			prompt.Parent = flask
-
+	if shopTrigger then
+		local prompt = shopTrigger:FindFirstChildOfClass("ProximityPrompt")
+		if prompt then
 			prompt.Triggered:Connect(function(player: Player)
-				playSoundAt(flask, "rbxassetid://9114223784", 0.7)
-				showFloatingText(flask, string.format("✨ Bebiste %s (%s)", pt.title, pt.effect), pt.color)
+				playSoundAt(shopTrigger, "rbxassetid://9114223784", 0.7)
+				showFloatingText(shopTrigger, "🧪 Adquiriste: Elixir de Celeridad y Maná Arcano", Color3.fromRGB(200, 160, 255))
 			end)
 		end
 	end
@@ -316,169 +248,108 @@ end
 --------------------------------------------------------------------------------
 -- ZONE 4: COMBAT MANNEQUINS & SPELL PRACTICE
 --------------------------------------------------------------------------------
-function LobbyInteractionService:SetupCombatMannequins()
-	local rangeModel = Workspace:FindFirstChild("MagicLobby_Zone4_SpellRange")
-	if not rangeModel then return end
+function LobbyInteractionService:SetupZone4Dueling(container: Instance?)
+	local dummies = {
+		{ name = "Trigger_Zone4_Dummy_Apprentice", key = "Apprentice", title = "Aprendiz", damage = 35 },
+		{ name = "Trigger_Zone4_Dummy_Battle", key = "Battle", title = "Batalla", damage = 65 },
+		{ name = "Trigger_Zone4_Dummy_Archmage", key = "Archmage", title = "Archimago", damage = 120 },
+	}
 
-	local dummyNames = { "Dummy_Apprentice", "Dummy_BattleMage", "Dummy_ArchMage" }
+	for _, d in ipairs(dummies) do
+		local trigger = (container and container:FindFirstChild(d.name))
+			or Workspace:FindFirstChild(d.name, true) :: BasePart?
 
-	for _, dName in ipairs(dummyNames) do
-		local torso = rangeModel:FindFirstChild(dName .. "_Torso") :: BasePart?
-		if torso then
-			-- Overhead Health Bar GUI
-			local bb = Instance.new("BillboardGui")
-			bb.Name = "DummyHealthGui"
-			bb.Size = UDim2.new(4.5, 0, 1.4, 0)
-			bb.StudsOffset = Vector3.new(0, 3.8, 0)
-			bb.AlwaysOnTop = true
-			bb.Parent = torso
+		if trigger then
+			local prompt = trigger:FindFirstChildOfClass("ProximityPrompt")
+			if prompt then
+				prompt.Triggered:Connect(function(player: Player)
+					local stats = self.dummyHealths[d.key]
+					if not stats then return end
 
-			local nameLabel = Instance.new("TextLabel")
-			nameLabel.Size = UDim2.new(1, 0, 0.45, 0)
-			nameLabel.BackgroundTransparency = 1
-			nameLabel.Text = dName:gsub("Dummy_", "Maniquí de ")
-			nameLabel.TextColor3 = Color3.fromRGB(255, 235, 170)
-			nameLabel.Font = Enum.Font.GothamBold
-			nameLabel.TextSize = 13
-			nameLabel.Parent = bb
+					local dmg = math.random(d.damage - 10, d.damage + 15)
+					stats.current = math.max(0, stats.current - dmg)
 
-			local barBg = Instance.new("Frame")
-			barBg.Size = UDim2.new(0.9, 0, 0.35, 0)
-			barBg.Position = UDim2.new(0.05, 0, 0.55, 0)
-			barBg.BackgroundColor3 = Color3.fromRGB(40, 42, 48)
-			barBg.BorderSizePixel = 0
-			barBg.Parent = bb
+					-- Play hit sound
+					playSoundAt(trigger, "rbxassetid://9114220194", 0.8)
 
-			local barFill = Instance.new("Frame")
-			barFill.Name = "Fill"
-			barFill.Size = UDim2.new(1, 0, 1, 0)
-			barFill.BackgroundColor3 = Color3.fromRGB(75, 225, 95)
-			barFill.BorderSizePixel = 0
-			barFill.Parent = barBg
+					-- Show damage popup
+					showFloatingText(trigger, string.format("💥 -%d HP (%d/%d)", dmg, stats.current, stats.max), Color3.fromRGB(255, 80, 80))
 
-			-- Proximity Prompt to Test Spells on Dummy
-			local prompt = Instance.new("ProximityPrompt")
-			prompt.ActionText = "Lanzar Hechizo de Prueba"
-			prompt.ObjectText = nameLabel.Text
-			prompt.HoldDuration = 0.2
-			prompt.MaxActivationDistance = 16
-			prompt.RequiresLineOfSight = false
-			prompt.Parent = torso
-
-			prompt.Triggered:Connect(function(player: Player)
-				local damage = math.random(35, 85)
-				local isCrit = math.random(1, 4) == 1
-				if isCrit then damage = math.floor(damage * 1.8) end
-
-				local dData = self.dummyHealths[dName]
-				if dData then
-					dData.current = math.max(0, dData.current - damage)
-					local fraction = dData.current / dData.max
-					barFill.Size = UDim2.new(fraction, 0, 1, 0)
-					if fraction < 0.3 then
-						barFill.BackgroundColor3 = Color3.fromRGB(255, 65, 65)
-					elseif fraction < 0.6 then
-						barFill.BackgroundColor3 = Color3.fromRGB(255, 195, 45)
-					else
-						barFill.BackgroundColor3 = Color3.fromRGB(75, 225, 95)
+					-- Update BillboardGui if present
+					local bb = trigger:FindFirstChildOfClass("BillboardGui")
+					if bb then
+						local lbl = bb:FindFirstChildOfClass("TextLabel")
+						if lbl then
+							lbl.Text = string.format("🎯 Maniquí de %s\nHP: %d/%d", d.title, stats.current, stats.max)
+						end
 					end
 
-					-- Damage Popup
-					local dmgText = isCrit and string.format("💥 ¡CRÍTICO! -%d HP", damage) or string.format("⚡ -%d HP", damage)
-					local dmgColor = isCrit and Color3.fromRGB(255, 190, 40) or Color3.fromRGB(255, 80, 80)
-					showFloatingText(torso, dmgText, dmgColor)
-					playSoundAt(torso, "rbxassetid://9114221804", 0.75)
-
-					-- Auto-heal dummy after 3 seconds
-					if dData.current <= 0 then
-						task.delay(1.5, function()
-							dData.current = dData.max
-							barFill.Size = UDim2.new(1, 0, 1, 0)
-							barFill.BackgroundColor3 = Color3.fromRGB(75, 225, 95)
-							showFloatingText(torso, "♻️ ¡Maniquí Reparado!", Color3.fromRGB(120, 255, 150))
-							playSoundAt(torso, "rbxassetid://9114223175", 0.5)
-						end)
-					end
-				end
-			end)
+					-- Auto-regenerate dummy after delay
+					task.delay(4.0, function()
+						stats.current = stats.max
+						if bb then
+							local lbl = bb:FindFirstChildOfClass("TextLabel")
+							if lbl then
+								lbl.Text = string.format("🎯 Maniquí de %s\nHP: %d/%d", d.title, stats.max, stats.max)
+							end
+						end
+					end)
+				end)
+			end
 		end
 	end
 end
 
 --------------------------------------------------------------------------------
--- ZONE 5: ELF-DWARF BLACKSMITH & ENCHANTER
+-- ZONE 5: ELF-DWARF ARTIFICER SMITHY
 --------------------------------------------------------------------------------
-function LobbyInteractionService:SetupElfBlacksmith()
-	local forgeModel = Workspace:FindFirstChild("MagicLobby_Zone5_ElfForge")
-	if not forgeModel then return end
+function LobbyInteractionService:SetupZone5Smithy(container: Instance?)
+	-- Anvil Trigger
+	local anvilTrigger = (container and container:FindFirstChild("Trigger_Zone5_Anvil_Repair"))
+		or Workspace:FindFirstChild("Trigger_Zone5_Anvil_Repair", true) :: BasePart?
 
-	local anvil = forgeModel:FindFirstChild("Anvil_Iron_Base") :: BasePart?
-	local elfHead = forgeModel:FindFirstChild("Elf_Head") :: BasePart?
-
-	-- Nameplate above Elf Blacksmith
-	if elfHead then
-		local bb = Instance.new("BillboardGui")
-		bb.Name = "ElfNameplate"
-		bb.Size = UDim2.new(5, 0, 1.5, 0)
-		bb.StudsOffset = Vector3.new(0, 2.4, 0)
-		bb.AlwaysOnTop = true
-		bb.Parent = elfHead
-
-		local lbl = Instance.new("TextLabel")
-		lbl.Size = UDim2.new(1, 0, 0.55, 0)
-		lbl.BackgroundTransparency = 1
-		lbl.Text = "🔨 Maestro Forjador Elfo"
-		lbl.TextColor3 = Color3.fromRGB(255, 215, 100)
-		lbl.Font = Enum.Font.GothamBold
-		lbl.TextSize = 15
-		lbl.Parent = bb
-
-		local sub = Instance.new("TextLabel")
-		sub.Size = UDim2.new(1, 0, 0.45, 0)
-		sub.Position = UDim2.new(0, 0, 0.55, 0)
-		sub.BackgroundTransparency = 1
-		sub.Text = "«Herrería y Anillos Arcanos»"
-		sub.TextColor3 = Color3.fromRGB(200, 220, 240)
-		sub.Font = Enum.Font.GothamMedium
-		sub.TextSize = 12
-		sub.Parent = bb
+	if anvilTrigger then
+		local prompt = anvilTrigger:FindFirstChildOfClass("ProximityPrompt")
+		if prompt then
+			prompt.Triggered:Connect(function(player: Player)
+				playSoundAt(anvilTrigger, "rbxassetid://9114220194", 0.9)
+				showFloatingText(anvilTrigger, "🛡️ ¡Armadura Reparada & Templada (+25% Protección)! 🔨", Color3.fromRGB(255, 190, 80))
+			end)
+		end
 	end
 
-	-- Interaction Prompt on Anvil
-	if anvil then
-		local prompt = Instance.new("ProximityPrompt")
-		prompt.ActionText = "Mejorar Armadura y Anillos"
-		prompt.ObjectText = "Yunque Rúnico del Elfo"
-		prompt.HoldDuration = 0.8
-		prompt.MaxActivationDistance = 12
-		prompt.RequiresLineOfSight = false
-		prompt.Parent = anvil
+	-- Rings Bench Trigger
+	local ringsTrigger = (container and container:FindFirstChild("Trigger_Zone5_Rings_Bench"))
+		or Workspace:FindFirstChild("Trigger_Zone5_Rings_Bench", true) :: BasePart?
 
-		prompt.Triggered:Connect(function(player: Player)
-			local char = player.Character
-			if char then
-				-- Play anvil clinking sound
-				playSoundAt(anvil, "rbxassetid://9114220194", 0.9)
+	if ringsTrigger then
+		local prompt = ringsTrigger:FindFirstChildOfClass("ProximityPrompt")
+		if prompt then
+			prompt.Triggered:Connect(function(player: Player)
+				playSoundAt(ringsTrigger, "rbxassetid://9114221528", 0.9)
+				showFloatingText(ringsTrigger, "💍 ¡Anillo Encantado: +15% Daño Mágico Arcana!", Color3.fromRGB(255, 140, 220))
+			end)
+		end
+	end
 
-				-- Armor sparks effect
-				local sparks = Instance.new("ParticleEmitter")
-				sparks.Rate = 40
-				sparks.Speed = NumberRange.new(3, 8)
-				sparks.Lifetime = NumberRange.new(0.4, 0.8)
-				sparks.LightEmission = 1.0
-				sparks.Color = ColorSequence.new(Color3.fromRGB(255, 180, 50))
-				sparks.Parent = anvil
+	-- NPC Dialogue Trigger
+	local npcTrigger = (container and container:FindFirstChild("Trigger_Zone5_ElfDwarf_NPC"))
+		or Workspace:FindFirstChild("Trigger_Zone5_ElfDwarf_NPC", true) :: BasePart?
 
-				task.delay(0.6, function()
-					sparks.Enabled = false
-					task.wait(1.0)
-					sparks:Destroy()
-				end)
-
-				-- Dialog & Buff
-				showFloatingText(anvil, "🛡️ ¡Armadura y Anillos Templados (+20% Resistencia)! 💍", Color3.fromRGB(255, 215, 90))
-			end
-		end)
+	if npcTrigger then
+		local prompt = npcTrigger:FindFirstChildOfClass("ProximityPrompt")
+		if prompt then
+			prompt.Triggered:Connect(function(player: Player)
+				playSoundAt(npcTrigger, "rbxassetid://9114221804", 0.7)
+				local dialogs = {
+					"«¡Saludos, joven mago! ¿Traes runas para templar?»",
+					"«El fuego de esta fragua proviene del aliento de dragón.»",
+					"«¡Mis anillos resisten cualquier maleficio oscuro!»"
+				}
+				local chosen = dialogs[math.random(1, #dialogs)]
+				showFloatingText(npcTrigger, string.format("🧔 Thistlebeard: %s", chosen), Color3.fromRGB(150, 245, 170))
+			end)
+		end
 	end
 end
 
