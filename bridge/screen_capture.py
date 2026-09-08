@@ -85,8 +85,12 @@ def capture_rect(x, y, w, h):
 def main():
     hwnd = find_roblox_studio_window()
     if hwnd:
-        user32.SetForegroundWindow(hwnd)
-        user32.ShowWindow(hwnd, 9) # SW_RESTORE
+        # Only restore if minimized, avoiding unnecessary desktop window flicker
+        if user32.IsIconic(hwnd):
+            user32.ShowWindow(hwnd, 9) # SW_RESTORE
+        fg_hwnd = user32.GetForegroundWindow()
+        if fg_hwnd != hwnd:
+            user32.SetForegroundWindow(hwnd)
         bounds = get_window_bounds(hwnd)
         if bounds:
             x, y, w, h = bounds

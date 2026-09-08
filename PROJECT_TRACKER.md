@@ -22,9 +22,22 @@
 - **RN-07 (DevEx 2026 & Idempotencia)**: `MarketplaceService.ProcessReceipt` debe persistir `PurchaseId` en DataStore antes de otorgar productos y retornar `NotProcessedYet` en fallos. Solo avatares R15 para calificar a tasa U.S. 18+ ($0.0054/R$).
 - **RN-08 (Undo Safety)**: Todo comando de modificación de escena en el companion plugin debe registrarse con `ChangeHistoryService:TryBeginRecording()` y `FinishRecording()`.
 - **RN-09 (SOLID / Clean Code)**: Funciones cortas (<40 líneas), principio de responsabilidad única, sin código muerto ni bypasses no documentados.
+- **RN-10 (Soberanía del Creador & No-Resurrección)**: El usuario humano en Roblox Studio es la máxima autoridad; terminantemente prohibido re-crear o restaurar instancias que el usuario haya borrado o editado, salvo orden textual explícita. Prohibido ejecutar scripts generadores monolíticos completos sobre escenas en edición.
+- **RN-11 (Convergencia Visual & Cortacircuitos)**: Máximo 2 pases de captura del Viewport por iteración con parada obligatoria. El servidor bridge bloquea capturas consecutivas sin mutación con HTTP 429 (`CIRCUIT_BREAKER_TRIGGERED`).
 
 ## 3. 🗺️ Roadmap & Phases
 - `[x]` **Fase 1: Especificación Formal, Catálogo de Skills y Setup del Repositorio**
+- `[x]` **Fase 2: Infraestructura del Enlace Local (Host Bridge & Vision Worker)**
+- `[x]` **Fase 3: Companion Plugin de Roblox Studio**
+- `[x]` **Fase 4: Plantilla de Proyecto Luau de Producción con Rojo**
+- `[x]` **Fase 5: Herramientas del Agente Autónomo y CLI Orquestador**
+- `[x]` **Fase 6: Verificación de Calidad (DoD Gatekeeper & Pruebas)**
+- `[x]` **Fase 7: RAASE 2.1 — Grafo Bidireccional, Smart Upsert, Cortacircuitos y Soberanía del Creador**
+  - Implementación de `GET_SCENE_GRAPH`, `INSPECT_OBJECT`, `MODIFY_OBJECT`, `DELETE_OBJECT`, `CLEAR_ZONE`.
+  - Smart Upsert en `BATCH_SPAWN` para impedir duplicación de partes o solapamientos.
+  - Cortacircuitos en el Bridge (`server.mjs`) que frena bucles infinitos de capturas.
+  - Captura no invasiva sin parpadeo de ventanas (`screen_capture.py`).
+  - Reglas RN-10 y RN-11 sincronizadas en `system_prompt.md` y `CLAUDE.md`.
   - Blueprint RAASE 2.0 actualizado con rediseño.
   - Matriz indexada de las 235 micro-habilidades (`raase_skills.json`).
   - Instrucciones de agente (`CLAUDE.md`, `agent/system_prompt.md`).
@@ -48,6 +61,17 @@
   - Doble juicio ciego (Judgment Day: Red SHIP / Blue SHIP).
 
 ## 4. 🧠 Decision Log
+- `[2026-09-07]` **Despliegue y Validación del Lobby Mágico Medieval (Inspirado en Harry Potter)**:
+  1. **Generación Procedural V2 High-Fidelity**: Ensamblado completo de 476 instancias primitivas en Roblox Studio organizadas en 10 modelos semánticos en `Workspace`.
+  2. **Arquitectura de las 5 Zonas**:
+     - *Zona 1 (Norte)*: Portal de Partidas con arco monumental, vórtice azul celestial, dos pebeteros de fuego y murallas de castillo con dos torreones *Norman Keep* de 32 studs.
+     - *Zona 2 (Este)*: Bóveda de Crates abierta con 4 columnas de piedra, 3 cofres reforzados con hierro y llaves flotantes iluminadas.
+     - *Zona 3 (Oeste)*: Boticario con entramado de madera, gran caldero de hierro verde borboteante con vapor y 3 estantes con 15 viales de pociones translúcidas.
+     - *Zona 4 (Sureste)*: Campo de entrenamiento cercado con 3 maniquís vestidos de mago (sombreros puntiagudos y túnicas), barras de vida y números de daño flotantes.
+     - *Zona 5 (Suroeste)*: Forja de piedra con hogar ardiente, chimenea, yunque, banco de terciopelo con anillos arcanos (Rubí, Zafiro, Esmeralda) y el PNJ Enano Elfo modelado.
+  3. **Iluminación & Estética Natural Clara**: Configuración diurna de hora dorada (*Golden Hour*) bajo tecnología `Future` con más de 16 antorchas de hierro forjado y basalto negro (`PointLight.Shadows = true`) y gran hoguera comunal en el patio central.
+  4. **Servicio Luau 2026**: Creación de `LobbyInteractionService.luau` bajo `--!strict` coordinando la cola de duelos, apertura de cofres con llaves, buffs de pociones y mejora de armaduras con el Elfo.
+  5. **Herramientas**: Expansión de `CompanionPlugin.server.luau` con `EXECUTE_LUAU`, rotaciones CFrame, `ProximityPrompt` y `BillboardGui`. Registro en `CCUNDLOCK.md`.
 - `[2026-09-07]` **Resolución de Judgment Day (Ronda 2 - Double Blind Audit)**:
   1. `MonetizationService.luau`: Enlace a `DataPersistenceService` con mutación real de monedas y tracker en sesión (`inSessionFulfilledReceipts`) para prevenir explotación de duplicación en reintentos de DataStore.
   2. `CompanionPlugin.server.luau`: Destrucción de partes originales (`partA` y `partB`) tras operaciones CSG exitosas para erradicar Z-fighting y colisiones superpuestas; adición de parámetro `nocache = true` en `HttpService:GetAsync` y backoff exponencial para respetar la cuota de 500 req/min del motor.

@@ -47,6 +47,24 @@ const studioState = {
   telemetry: {}
 };
 
+// Circuit Breaker for Screen Captures: prevents endless vision agent looping
+const MAX_CONSECUTIVE_CAPTURES = 2;
+let consecutiveCapturesCount = 0;
+
+// Actions that mutate the 3D scene (resetting the capture circuit breaker)
+const MUTATING_ACTIONS = new Set([
+  'BATCH_SPAWN',
+  'MODIFY_OBJECT',
+  'DELETE_OBJECT',
+  'CLEAR_ZONE',
+  'SET_TERRAIN_VOXELS',
+  'SET_LIGHTING',
+  'EXECUTE_LUAU',
+  'SPAWN_PART',
+  'CREATE_ISLAND',
+  'CSG_OPERATION'
+]);
+
 /**
  * Dispatch a command to Studio with optional synchronous waiting for report
  * @param {string} action
@@ -56,6 +74,14 @@ const studioState = {
  * @returns {Promise<{ cmd: Command, report?: ExecutionReport }>}
  */
 function dispatchCommand(action, args = {}, shouldWait = false, timeoutMs = 15000) {
+  // If this command mutates the scene, reset capture circuit breaker
+  if (MUTATING_ACTIONS.has(action)) {
+    if (consecutiveCapturesCount > 0) {
+      console.log(`[CircuitBreaker] Scene mutating action '${action}' detected. Resetting consecutive capture count from ${consecutiveCapturesCount} to 0.`);
+    }
+    consecutiveCapturesCount = 0;
+  }
+
   const id = `cmd_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
   const cmd = { id, action, args, timestamp: Date.now() };
 
@@ -160,6 +186,10 @@ const server = http.createServer(async (req, res) => {
         studioConnected: isAlive,
         queueLength: commandQueue.length,
         waitingPollers: waitingPollers.length,
+        captureCircuitBreaker: {
+          consecutiveCaptures: consecutiveCapturesCount,
+          maxConsecutive: MAX_CONSECUTIVE_CAPTURES
+        },
         studioState
       });
     }
@@ -327,8 +357,24 @@ const server = http.createServer(async (req, res) => {
       return sendJson(res, 200, { success: true, recorded: entry });
     }
 
-    // 5. Trigger Viewport Capture
+    // 5. Trigger Viewport Capture (guarded by Circuit Breaker)
     if (req.method === 'POST' && url.pathname === '/api/capture') {
+      const isForce = url.searchParams.get('force') === 'true';
+
+      if (!isForce && consecutiveCapturesCount >= MAX_CONSECUTIVE_CAPTURES) {
+        console.warn(`[CIRCUIT BREAKER] Capture blocked: ${consecutiveCapturesCount} consecutive captures without scene mutations.`);
+        return sendJson(res, 429, {
+          success: false,
+          circuitBreaker: true,
+          error: `CIRCUIT_BREAKER_TRIGGERED: Maximum consecutive captures (${MAX_CONSECUTIVE_CAPTURES}) reached without scene mutations. You MUST perform a scene mutation (or finish the audit and report to user) before capturing again.`,
+          consecutiveCaptures: consecutiveCapturesCount,
+          solution: 'Execute a modifying command (e.g. /api/scene-graph/modify, /api/command/batch, /api/command with BATCH_SPAWN/SET_TERRAIN_VOXELS/EXECUTE_LUAU) or call POST /api/capture/reset to reset.'
+        });
+      }
+
+      consecutiveCapturesCount++;
+      console.log(`[ScreenCapture] Executing capture (#${consecutiveCapturesCount}/${MAX_CONSECUTIVE_CAPTURES})...`);
+
       const captureScript = path.join(__dirname, 'screen_capture.py');
       const pyProcess = spawn('python', [captureScript], { cwd: __dirname });
 
@@ -358,6 +404,7 @@ const server = http.createServer(async (req, res) => {
             success: true,
             message: 'Capture complete',
             file: path.resolve(__dirname, '..', 'viewport_latest.png'),
+            consecutiveCaptures: consecutiveCapturesCount,
             log: output.trim()
           });
         } else {
@@ -369,6 +416,16 @@ const server = http.createServer(async (req, res) => {
         }
       });
       return;
+    }
+
+    // 5b. Reset Viewport Capture Circuit Breaker
+    if (req.method === 'POST' && url.pathname === '/api/capture/reset') {
+      consecutiveCapturesCount = 0;
+      console.log('[CircuitBreaker] Counter manually reset to 0');
+      return sendJson(res, 200, {
+        success: true,
+        message: 'Capture circuit breaker counter reset to 0'
+      });
     }
 
     // 6. Execution History

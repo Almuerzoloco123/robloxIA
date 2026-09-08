@@ -347,18 +347,56 @@ end
 --------------------------------------------------------------------------------
 
 local function resolveInstance(targetPath: string): Instance?
+	if not targetPath or targetPath == "" then return nil end
 	if targetPath == "workspace" or targetPath == "Workspace" then
 		return workspace
 	end
-
-	local cleanPath = targetPath:gsub("^workspace%.", ""):gsub("^Workspace%.", "")
-	local parts = string.split(cleanPath, ".")
-	local current: Instance? = workspace
-
-	for _, name in ipairs(parts) do
-		if not current then return nil end
-		current = current:FindFirstChild(name)
+	if targetPath == "Lighting" or targetPath == "game.Lighting" then
+		return Lighting
 	end
+
+	local cleanPath = targetPath:gsub("^game%.", "")
+	local parts = string.split(cleanPath, ".")
+	local first = parts[1]
+
+	local root: Instance? = nil
+	local startIndex = 2
+
+	if first == "workspace" or first == "Workspace" then
+		root = workspace
+	elseif first == "Lighting" then
+		root = Lighting
+	elseif first == "ServerScriptService" then
+		root = game:GetService("ServerScriptService")
+	elseif first == "ReplicatedStorage" then
+		root = game:GetService("ReplicatedStorage")
+	elseif first == "StarterGui" then
+		root = game:GetService("StarterGui")
+	elseif first == "SoundService" then
+		root = game:GetService("SoundService")
+	else
+		local svcOk, svc = pcall(function() return game:GetService(first) end)
+		if svcOk and svc then
+			root = svc
+		else
+			root = workspace:FindFirstChild(first) or workspace
+			startIndex = (workspace:FindFirstChild(first) ~= nil) and 2 or 1
+		end
+	end
+
+	if not root then return workspace:FindFirstChild(targetPath, true) end
+	if #parts < startIndex then return root end
+
+	local current: Instance? = root
+	for i = startIndex, #parts do
+		if not current then break end
+		current = current:FindFirstChild(parts[i])
+	end
+
+	if not current then
+		current = workspace:FindFirstChild(targetPath, true)
+	end
+
 	return current
 end
 
@@ -584,24 +622,65 @@ local function handleBatchSpawn(args: { [string]: any }): { [string]: any }
 	end
 
 	local instancesData = args.instances or {}
+	local mode = args.mode or "upsert" -- "upsert" (default: update existing), "create_only", or "skip_existing"
+	local excludeSet: { [string]: boolean } = {}
+	if args.excludeNames and type(args.excludeNames) == "table" then
+		for _, name in ipairs(args.excludeNames) do
+			excludeSet[tostring(name)] = true
+		end
+	end
+
 	local createdCount = 0
+	local updatedCount = 0
 
 	for _, data in ipairs(instancesData) do
 		local className = data.className or "Part"
+		local partName = data.name or "BatchPart"
+
+		if excludeSet[partName] then
+			continue
+		end
 
 		if className == "Part" or className == "WedgePart" or className == "CornerWedgePart" then
-			local p = Instance.new(className) :: Part
-			p.Name = data.name or "BatchPart"
+			local existing = container:FindFirstChild(partName)
+			local p: Part
+			local isNew = false
+
+			if existing and existing:IsA("BasePart") then
+				if mode == "skip_existing" then
+					continue
+				end
+				p = existing :: Part
+				updatedCount += 1
+			else
+				p = Instance.new(className) :: Part
+				p.Name = partName
+				isNew = true
+			end
 
 			if data.size then
 				p.Size = Vector3.new(data.size[1], data.size[2], data.size[3])
 			end
 
-			if data.cframe and type(data.cframe) == "table" and data.cframe.position then
-				local pos = data.cframe.position
-				p.CFrame = CFrame.new(pos[1], pos[2], pos[3])
+			if data.cframe and type(data.cframe) == "table" then
+				local pos = data.cframe.position or {0, 0, 0}
+				local cf = CFrame.new(pos[1], pos[2], pos[3])
+				if data.cframe.angles then
+					local a = data.cframe.angles
+					cf = cf * CFrame.Angles(math.rad(a[1] or 0), math.rad(a[2] or 0), math.rad(a[3] or 0))
+				elseif data.cframe.lookAt then
+					local target = data.cframe.lookAt
+					cf = CFrame.lookAt(Vector3.new(pos[1], pos[2], pos[3]), Vector3.new(target[1], target[2], target[3]))
+				end
+				p.CFrame = cf
 			elseif data.position then
-				p.Position = Vector3.new(data.position[1], data.position[2], data.position[3])
+				local pos = data.position
+				local cf = CFrame.new(pos[1], pos[2], pos[3])
+				if data.angles then
+					local a = data.angles
+					cf = cf * CFrame.Angles(math.rad(a[1] or 0), math.rad(a[2] or 0), math.rad(a[3] or 0))
+				end
+				p.CFrame = cf
 			end
 
 			if data.color then
@@ -623,36 +702,136 @@ local function handleBatchSpawn(args: { [string]: any }): { [string]: any }
 				if s then p.Shape = s end
 			end
 
-			p.Parent = container
-			createdCount += 1
+			if data.specialMesh then
+				local sm = p:FindFirstChildOfClass("SpecialMesh") or Instance.new("SpecialMesh")
+				local mType = (Enum.MeshType :: any)[data.specialMesh.meshType or "Sphere"] or Enum.MeshType.Sphere
+				sm.MeshType = mType
+				if data.specialMesh.scale then
+					sm.Scale = Vector3.new(data.specialMesh.scale[1], data.specialMesh.scale[2], data.specialMesh.scale[3])
+				end
+				sm.Parent = p
+			end
+
+			if data.proximityPrompt then
+				local prompt = p:FindFirstChildOfClass("ProximityPrompt") or Instance.new("ProximityPrompt")
+				prompt.ActionText = data.proximityPrompt.actionText or "Interact"
+				prompt.ObjectText = data.proximityPrompt.objectText or p.Name
+				prompt.HoldDuration = data.proximityPrompt.holdDuration or 0.5
+				prompt.MaxActivationDistance = data.proximityPrompt.maxDistance or 10
+				prompt.RequiresLineOfSight = false
+				prompt.Parent = p
+			end
+
+			if data.billboardGui then
+				local bb = p:FindFirstChildOfClass("BillboardGui") or Instance.new("BillboardGui")
+				bb.Size = UDim2.new(data.billboardGui.sizeX or 4, 0, data.billboardGui.sizeY or 1.5, 0)
+				bb.StudsOffset = Vector3.new(0, data.billboardGui.offsetY or 2.5, 0)
+				bb.AlwaysOnTop = data.billboardGui.alwaysOnTop ~= false
+				local tl = bb:FindFirstChildOfClass("TextLabel") or Instance.new("TextLabel")
+				tl.Size = UDim2.new(1, 0, 1, 0)
+				tl.BackgroundTransparency = 1
+				tl.TextColor3 = data.billboardGui.textColor and Color3.fromRGB(data.billboardGui.textColor[1], data.billboardGui.textColor[2], data.billboardGui.textColor[3]) or Color3.fromRGB(255, 235, 160)
+				tl.Text = data.billboardGui.text or ""
+				tl.Font = Enum.Font.GothamBold
+				tl.TextScaled = true
+				tl.Parent = bb
+				bb.Parent = p
+			end
+
+			if data.sound then
+				local snd = p:FindFirstChildOfClass("Sound") or Instance.new("Sound")
+				snd.SoundId = data.sound.soundId or "rbxassetid://9113642309"
+				snd.Volume = data.sound.volume or 0.5
+				snd.Looped = data.sound.looped == true
+				snd.RollOffMode = Enum.RollOffMode.InverseTapered
+				snd.RollOffMinDistance = data.sound.minDist or 5
+				snd.RollOffMaxDistance = data.sound.maxDist or 45
+				snd.Parent = p
+				if data.sound.play then
+					snd:Play()
+				end
+			end
+
+			if isNew then
+				p.Parent = container
+				createdCount += 1
+			end
 		elseif className == "PointLight" or className == "SpotLight" or className == "SurfaceLight" then
-			local light = Instance.new(className)
+			local targetParent = data.parentPart and container:FindFirstChild(data.parentPart, true) or container
+			local lightName = data.name or "Light"
+			local light = targetParent:FindFirstChild(lightName)
+			local isNew = false
+
+			if light and light.ClassName == className then
+				if mode == "skip_existing" then continue end
+				updatedCount += 1
+			else
+				light = Instance.new(className)
+				light.Name = lightName
+				isNew = true
+			end
+
 			local lightAny = light :: any
-			light.Name = data.name or "Light"
 			if data.color then light.Color = Color3.fromRGB(data.color[1], data.color[2], data.color[3]) end
 			if data.brightness then lightAny.Brightness = data.brightness end
 			if data.range then lightAny.Range = data.range end
 			if data.shadows ~= nil then lightAny.Shadows = data.shadows end
-			local targetParent = data.parentPart and container:FindFirstChild(data.parentPart, true) or container
-			light.Parent = targetParent
-			createdCount += 1
+
+			if isNew then
+				light.Parent = targetParent
+				createdCount += 1
+			end
 		elseif className == "ParticleEmitter" then
-			local emitter = Instance.new("ParticleEmitter")
-			emitter.Name = data.name or "Emitter"
+			local targetParent = data.parentPart and container:FindFirstChild(data.parentPart, true) or container
+			local emitterName = data.name or "Emitter"
+			local emitter = targetParent:FindFirstChild(emitterName) :: ParticleEmitter?
+			local isNew = false
+
+			if emitter and emitter:IsA("ParticleEmitter") then
+				if mode == "skip_existing" then continue end
+				updatedCount += 1
+			else
+				emitter = Instance.new("ParticleEmitter")
+				emitter.Name = emitterName
+				isNew = true
+			end
+
 			if data.rate then emitter.Rate = data.rate end
 			if data.lifetime then emitter.Lifetime = NumberRange.new(data.lifetime[1], data.lifetime[2]) end
 			if data.speed then emitter.Speed = NumberRange.new(data.speed[1], data.speed[2]) end
 			if data.lightEmission then emitter.LightEmission = data.lightEmission end
 			if data.lightInfluence then emitter.LightInfluence = data.lightInfluence end
-			local targetParent = data.parentPart and container:FindFirstChild(data.parentPart, true) or container
-			emitter.Parent = targetParent
-			createdCount += 1
+			if data.spreadAngle then emitter.SpreadAngle = Vector2.new(data.spreadAngle[1], data.spreadAngle[2]) end
+			if data.acceleration then emitter.Acceleration = Vector3.new(data.acceleration[1], data.acceleration[2], data.acceleration[3]) end
+			if data.color then
+				emitter.Color = ColorSequence.new(Color3.fromRGB(data.color[1], data.color[2], data.color[3]))
+			end
+			if data.sizeCurve then
+				local kps = {}
+				for _, kp in ipairs(data.sizeCurve) do
+					table.insert(kps, NumberSequenceKeypoint.new(kp[1], kp[2]))
+				end
+				emitter.Size = NumberSequence.new(kps)
+			end
+			if data.transparencyCurve then
+				local kps = {}
+				for _, kp in ipairs(data.transparencyCurve) do
+					table.insert(kps, NumberSequenceKeypoint.new(kp[1], kp[2]))
+				end
+				emitter.Transparency = NumberSequence.new(kps)
+			end
+
+			if isNew then
+				emitter.Parent = targetParent
+				createdCount += 1
+			end
 		end
 	end
 
 	return {
 		container = container.Name,
 		createdCount = createdCount,
+		updatedCount = updatedCount,
 		requestedCount = #instancesData,
 	}
 end
@@ -802,7 +981,9 @@ end
 local function handleSetLighting(args: { [string]: any }): { [string]: any }
 	local preset = args.preset or "GoldenHour"
 	Lighting:ClearAllChildren()
-	Lighting.Technology = Enum.Technology.Future
+	pcall(function()
+		(Lighting :: any).Technology = Enum.Technology.Future
+	end)
 	Lighting.GlobalShadows = true
 
 	if preset == "GoldenHour" then
@@ -810,11 +991,11 @@ local function handleSetLighting(args: { [string]: any }): { [string]: any }
 		Lighting.Brightness = 2.4
 		Lighting.OutdoorAmbient = Color3.fromRGB(150, 135, 120)
 		Lighting.Ambient = Color3.fromRGB(110, 95, 80)
-	elseif preset == "Midnight" then
-		Lighting.ClockTime = 0.5
-		Lighting.Brightness = 0.8
-		Lighting.OutdoorAmbient = Color3.fromRGB(35, 45, 65)
-		Lighting.Ambient = Color3.fromRGB(20, 25, 40)
+	elseif preset == "Midnight" or preset == "MagicNight" then
+		Lighting.ClockTime = args.clockTime or 20.8 -- Noche mágica estrellada
+		Lighting.Brightness = args.brightness or 2.2 -- Noche iluminada y clara, NO oscura
+		Lighting.OutdoorAmbient = Color3.fromRGB(85, 100, 135)
+		Lighting.Ambient = Color3.fromRGB(70, 80, 110)
 	else
 		Lighting.ClockTime = 14.0
 		Lighting.Brightness = 2.0
@@ -890,6 +1071,20 @@ local function executeCommand(cmd: { id: string, action: string, args: { [string
 			return handleSetLighting(cmd.args)
 		elseif cmd.action == "FOCUS_CAMERA" then
 			return handleFocusCamera(cmd.args)
+		elseif cmd.action == "EXECUTE_LUAU" then
+			local code = cmd.args.code
+			if not code or type(code) ~= "string" then
+				error("EXECUTE_LUAU requires 'code' string argument")
+			end
+			local chunk, compileErr = loadstring(code)
+			if not chunk then
+				error("EXECUTE_LUAU compile error: " .. tostring(compileErr))
+			end
+			local ok, res = pcall(chunk)
+			if not ok then
+				error("EXECUTE_LUAU runtime error: " .. tostring(res))
+			end
+			return { executed = true, result = tostring(res) }
 		elseif cmd.action == "PING_TEST" then
 			return { ping = "pong_v2.1", time = os.time() }
 		else

@@ -31,9 +31,20 @@ Este proyecto implementa el sistema **RAASE 2.0 (robloxIA)**: una arquitectura a
 - Si la base de datos falla, retornar siempre `Enum.ProductPurchaseDecision.NotProcessedYet`.
 - Configurar el juego exclusivamente con avatares R15 para calificar a la tasa preferencial U.S. 18+ ($0.0054 por Robux).
 
+## Soberanía del Creador y No-Resurrección de Objetos
+- El usuario humano en Roblox Studio es la MÁXIMA AUTORIDAD del proyecto.
+- Si un objeto, modelo o terreno fue borrado o editado por el usuario, QUEDA ESTRICTAMENTE PROHIBIDO volver a crearlo, restaurarlo o sobreescribirlo sin orden explícita del creador.
+- Jamás re-ejecutar scripts generadores monolíticos completos sobre un mapa en edición. Usar siempre micro-mutaciones selectivas (`MODIFY_OBJECT`, `DELETE_OBJECT`, o `BATCH_SPAWN` para elementos nuevos).
+- Antes de modificar cualquier zona, consultar el estado real del Workspace con `GET_SCENE_GRAPH` o `INSPECT_OBJECT`.
+
+## Protocolo de Convergencia Visual (Máximo 2 Pases - Anti-Bucle)
+- Fase 1: 1 captura de Viewport (`POST /api/capture`) -> Identificar defectos -> Aplicar un único paquete de micro-ajustes.
+- Fase 2: 1 captura de verificación -> Confirmar aplicación.
+- PARADA OBLIGATORIA: Tras la verificación (o si no hubo defectos en Fase 1), detener inmediatamente cualquier captura adicional y devolver el control al usuario.
+
 ## Estructura del Repositorio
-- `bridge/`: Servidor HTTP local (puerto `34873`) y capturador de viewport en el host.
-- `plugin/`: Companion Plugin para Roblox Studio (gestión con `ChangeHistoryService`).
+- `bridge/`: Servidor HTTP local (puerto `34873`) con cortacircuitos de captura y worker de captura no invasivo.
+- `plugin/`: Companion Plugin para Roblox Studio (gestión con `ChangeHistoryService` y Smart Upsert).
 - `project_template/`: Estructura estándar de juego en Luau gestionada con Rojo.
 - `agent/`: Catálogo JSON de 235 skills RAASE, CLI de orquestación y prompts de sistema.
-- `docs/`: Especificación formal RAASE 2.0.
+- `docs/`: Especificación formal RAASE 2.0 / 2.1.

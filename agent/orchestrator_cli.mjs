@@ -223,6 +223,15 @@ async function main() {
         });
         break;
 
+      case 'exec-luau':
+        if (!args[1]) throw new Error('Usage: node orchestrator_cli.mjs exec-luau <file.luau | "code">');
+        let luauCode = args.slice(1).join(' ');
+        if (fs.existsSync(args[1])) {
+          luauCode = fs.readFileSync(args[1], 'utf8');
+        }
+        await sendCommand('EXECUTE_LUAU', { code: luauCode }, true);
+        break;
+
       case 'capture':
         await triggerCapture();
         break;
