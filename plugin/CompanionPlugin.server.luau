@@ -305,7 +305,7 @@ local function createDockWidget()
 	tokenFrame.Parent = root
 
 	local tokenLbl = Instance.new("TextLabel")
-	tokenLbl.Size = UDim2.new(0, 48, 1, 0)
+	tokenLbl.Size = UDim2.new(0, 65, 1, 0)
 	tokenLbl.BackgroundTransparency = 1
 	tokenLbl.Text = "🔑 Token:"
 	tokenLbl.TextColor3 = Color3.fromRGB(170, 185, 205)
@@ -315,8 +315,8 @@ local function createDockWidget()
 	tokenLbl.Parent = tokenFrame
 
 	local tokenInput = Instance.new("TextBox")
-	tokenInput.Size = UDim2.new(1, -52, 1, 0)
-	tokenInput.Position = UDim2.new(0, 50, 0, 0)
+	tokenInput.Size = UDim2.new(1, -70, 1, 0)
+	tokenInput.Position = UDim2.new(0, 68, 0, 0)
 	tokenInput.BackgroundColor3 = Color3.fromRGB(35, 38, 46)
 	tokenInput.BorderSizePixel = 0
 	tokenInput.Text = bridgeToken

@@ -46,7 +46,8 @@ if (process.env.ROBLOXIA_NO_WRITE_TOKEN_FILE !== '1') {
       fs.writeFileSync(TOKEN_FILE, BRIDGE_TOKEN, { encoding: 'utf8', mode: 0o600 });
     }
   } catch (err) {
-    console.warn('[Bridge] Warning: Could not write token file:', err.message);
+    const msg = err instanceof Error ? err.message : String(err);
+    console.warn('[Bridge] Warning: Could not write token file:', msg);
   }
 }
 
@@ -95,6 +96,7 @@ function getCorsHeaders(req) {
  * @property {Record<string, any>} args
  * @property {number} timestamp
  * @property {string} [idempotencyKey]
+ * @property {string} [reportNonce]
  */
 
 /**
@@ -119,7 +121,7 @@ const waitingPollers = [];
 /** @type {Map<string, (report: ExecutionReport) => void>} */
 const reportWaiters = new Map();
 
-/** @type {Map<string, { cmd: Command, timestamp: number }>} */
+/** @type {Map<string, { cmd: Command, timestamp: number, reportNonce?: string }>} */
 const dispatchedCommands = new Map();
 
 /** @type {Map<string, { cmd: Command, report?: ExecutionReport, inFlight?: Promise<any>, timestamp: number }>} */
@@ -595,7 +597,7 @@ const server = http.createServer(async (req, res) => {
       }
 
       const dispatched = dispatchedCommands.get(report.commandId);
-      if (dispatched.reportNonce && report.reportNonce !== dispatched.reportNonce) {
+      if (dispatched && dispatched.reportNonce && report.reportNonce !== dispatched.reportNonce) {
         return sendJson(res, 403, {
           success: false,
           error: 'FORBIDDEN: Invalid or missing reportNonce. Only the authorized Studio runner can report execution results.'
@@ -616,7 +618,7 @@ const server = http.createServer(async (req, res) => {
         commandId: report.commandId,
         status: sanitizedStatus,
         details: (report.details && typeof report.details === 'object') ? report.details : {},
-        error: report.error ? String(report.error) : (sanitizedStatus === 'ERROR' ? 'Execution failed or status was not SUCCESS' : null),
+        error: report.error ? String(report.error) : (sanitizedStatus === 'ERROR' ? 'Execution failed or status was not SUCCESS' : undefined),
         telemetry: report.telemetry || {},
         timestamp: Date.now()
       };
@@ -693,6 +695,10 @@ const server = http.createServer(async (req, res) => {
         });
       }, 10000);
 
+      /**
+       * @param {number} status
+       * @param {any} data
+       */
       const respond = (status, data) => {
         if (responded) return;
         responded = true;
@@ -706,14 +712,21 @@ const server = http.createServer(async (req, res) => {
         }
       });
 
+      /**
+       * @param {string} cmd
+       * @param {string[]} args
+       * @param {boolean} [isFallback]
+       */
       function launchWorker(cmd, args, isFallback = false) {
         let output = '';
         let error = '';
+        /** @type {import('node:child_process').ChildProcess | undefined} */
         let proc;
         try {
           proc = spawn(cmd, args, { cwd: __dirname });
           activeProc = proc;
         } catch (spawnErr) {
+          const spawnMsg = spawnErr instanceof Error ? spawnErr.message : String(spawnErr);
           if (!isFallback && process.platform === 'win32') {
             console.log('[ScreenCapture] "python" failed to spawn, attempting fallback to "py -3"...');
             return launchWorker('py', ['-3', captureScript], true);
@@ -721,7 +734,7 @@ const server = http.createServer(async (req, res) => {
           return respond(500, {
             success: false,
             error: 'Failed to launch screen capture worker process',
-            details: spawnErr.message
+            details: spawnMsg
           });
         }
 
@@ -805,8 +818,9 @@ const server = http.createServer(async (req, res) => {
     return sendJson(res, 404, { success: false, error: 'Endpoint not found' }, req);
   } catch (err) {
     if (res.headersSent || res.writableEnded) return;
-    const statusCode = (err && typeof err === 'object' && err.statusCode) ? err.statusCode : 500;
-    return sendJson(res, statusCode, { success: false, error: err?.message || String(err) }, req);
+    const errObj = /** @type {any} */ (err);
+    const statusCode = (errObj && typeof errObj === 'object' && typeof errObj.statusCode === 'number') ? errObj.statusCode : 500;
+    return sendJson(res, statusCode, { success: false, error: errObj?.message || String(err) }, req);
   }
 });
 
