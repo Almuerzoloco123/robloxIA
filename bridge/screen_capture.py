@@ -87,10 +87,11 @@ import time
 def main():
     hwnd = find_roblox_studio_window()
     if hwnd:
-        user32.ShowWindow(hwnd, 9) # SW_RESTORE
-        user32.SetForegroundWindow(hwnd)
-        user32.BringWindowToTop(hwnd)
-        time.sleep(0.35)
+        # Non-invasive restore: only restore if the window is currently minimized
+        if user32.IsIconic(hwnd):
+            user32.ShowWindow(hwnd, 9) # SW_RESTORE
+            time.sleep(0.2)
+
         bounds = get_window_bounds(hwnd)
         if bounds:
             x, y, w, h = bounds
@@ -99,7 +100,7 @@ def main():
         else:
             success = capture_rect(0, 0, 1920, 1080)
     else:
-        print("[ScreenCapture] Roblox Studio not in foreground. Capturing primary display.")
+        print("[ScreenCapture] Roblox Studio window not detected. Capturing primary display.")
         success = capture_rect(0, 0, 1920, 1080)
 
     if success and os.path.exists(OUTPUT_FILENAME):
@@ -112,3 +113,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

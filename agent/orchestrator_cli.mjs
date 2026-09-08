@@ -17,20 +17,50 @@ const __dirname = path.dirname(__filename);
 const BRIDGE_URL = process.env.RAASE_BRIDGE_URL || 'http://127.0.0.1:34873';
 
 /**
+ * Resolves the bridge Bearer token from ROBLOXIA_BRIDGE_TOKEN env or bridge/.bridge_token on disk.
+ * @returns {string}
+ */
+function getBridgeToken() {
+  if (process.env.ROBLOXIA_BRIDGE_TOKEN && process.env.ROBLOXIA_BRIDGE_TOKEN.trim()) {
+    return process.env.ROBLOXIA_BRIDGE_TOKEN.trim();
+  }
+  const tokenFilePath = path.resolve(__dirname, '..', 'bridge', '.bridge_token');
+  if (fs.existsSync(tokenFilePath)) {
+    try {
+      return fs.readFileSync(tokenFilePath, 'utf8').trim();
+    } catch {
+      // ignore read errors; auth will fail closed with a 401 from the bridge
+    }
+  }
+  return '';
+}
+
+/**
  * @param {string} endpoint
  * @param {RequestInit} [options]
  * @returns {Promise<any>}
  */
 async function fetchJson(endpoint, options = {}) {
+  const headers = { ...(options.headers || {}) };
+  const token = getBridgeToken();
+  if (token && !headers['Authorization']) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
   try {
-    const res = await fetch(`${BRIDGE_URL}${endpoint}`, options);
+    const res = await fetch(`${BRIDGE_URL}${endpoint}`, { ...options, headers });
     if (!res.ok) {
       const errText = await res.text();
+      if (res.status === 401) {
+        throw new Error('HTTP 401 Unauthorized: Bearer token invalid or missing. Ensure ROBLOXIA_BRIDGE_TOKEN matches the token displayed by bridge/server.mjs.');
+      }
       throw new Error(`HTTP ${res.status}: ${errText}`);
     }
     return await res.json();
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
+    if (typeof message === 'string' && message.startsWith('HTTP 401')) {
+      throw err;
+    }
     throw new Error(`Bridge communication error (${BRIDGE_URL}${endpoint}): ${message}`);
   }
 }

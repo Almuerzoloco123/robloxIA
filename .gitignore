@@ -22,4 +22,6 @@ _Index/
 *.rbxm
 __pycache__/
 *.pyc
+.bridge_token
+
 

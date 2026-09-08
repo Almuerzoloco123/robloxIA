@@ -17,8 +17,18 @@ local PurchaseHistoryStore = DataStoreService:GetDataStore("RAASE_PurchaseHistor
 local MonetizationService = {}
 MonetizationService.__index = MonetizationService
 
--- In-memory session deduplication tracker to prevent duplicate reward grants if DataStore write retries
-local inSessionFulfilledReceipts: { [string]: boolean } = {}
+-- In-memory session deduplication tracker with timestamp for cache expiration
+local inSessionFulfilledReceipts: { [string]: number } = {}
+local DEDUPE_CACHE_TTL = 3600 -- 1 hour TTL for in-memory dedupe entries
+
+local function cleanDedupeCache()
+	local now = os.time()
+	for pId, timestamp in pairs(inSessionFulfilledReceipts) do
+		if now - timestamp > DEDUPE_CACHE_TTL then
+			inSessionFulfilledReceipts[pId] = nil
+		end
+	end
+end
 
 -- Product Handlers Map mutating real player session state
 local productHandlers: { [number]: (player: Player) -> boolean } = {
@@ -44,20 +54,22 @@ local productHandlers: { [number]: (player: Player) -> boolean } = {
 
 -- Idempotent ProcessReceipt Callback with Atomic Transactional Order & Retry Protection
 local function processReceipt(receiptInfo: { [string]: any }): Enum.ProductPurchaseDecision
-	local purchaseId = receiptInfo.PurchaseId
+	local purchaseId = tostring(receiptInfo.PurchaseId)
 	local playerId = receiptInfo.PlayerId
 	local productId = receiptInfo.ProductId
 
-	local recordKey = "Receipt_" .. tostring(purchaseId)
+	local recordKey = "Receipt_" .. purchaseId
+
+	-- Clean expired in-memory dedupe entries
+	cleanDedupeCache()
 
 	-- 1. Check if purchase was already granted and recorded in DataStore previously
-	local checkSuccess, isAlreadyGranted = pcall(function()
-		local record = PurchaseHistoryStore:GetAsync(recordKey)
-		return record ~= nil and record.granted == true
+	local checkSuccess, record = pcall(function()
+		return PurchaseHistoryStore:GetAsync(recordKey)
 	end)
 
-	if checkSuccess and isAlreadyGranted then
-		print(string.format("[RECEIPT] Purchase %s was already granted and recorded. Confirming.", tostring(purchaseId)))
+	if checkSuccess and record and record.granted == true then
+		print(string.format("[RECEIPT] Purchase %s was already granted and recorded. Confirming.", purchaseId))
 		return Enum.ProductPurchaseDecision.PurchaseGranted
 	end
 
@@ -68,8 +80,29 @@ local function processReceipt(receiptInfo: { [string]: any }): Enum.ProductPurch
 		return Enum.ProductPurchaseDecision.NotProcessedYet
 	end
 
-	-- 3. Execute product reward handler with session deduplication guard
-	local alreadyFulfilled = inSessionFulfilledReceipts[purchaseId] == true
+	-- 3. Persist PurchaseId record in DataStore BEFORE granting reward (prevents unrecorded grants on crash)
+	local persistSuccess, _ = pcall(function()
+		return PurchaseHistoryStore:UpdateAsync(recordKey, function(current: any)
+			if current and current.granted == true then
+				return current
+			end
+			return {
+				purchaseId = purchaseId,
+				playerId = playerId,
+				productId = productId,
+				timestamp = os.time(),
+				granted = false, -- marked pending
+			}
+		end)
+	end)
+
+	if not persistSuccess then
+		warn(string.format("[RECEIPT ERROR] Failed to persist initial purchase record for %s. Requesting retry.", purchaseId))
+		return Enum.ProductPurchaseDecision.NotProcessedYet
+	end
+
+	-- 4. Execute product reward handler with session deduplication guard
+	local alreadyFulfilled = inSessionFulfilledReceipts[purchaseId] ~= nil
 	if not alreadyFulfilled then
 		local handler = productHandlers[productId]
 		if not handler then
@@ -83,28 +116,29 @@ local function processReceipt(receiptInfo: { [string]: any }): Enum.ProductPurch
 			return Enum.ProductPurchaseDecision.NotProcessedYet
 		end
 
-		inSessionFulfilledReceipts[purchaseId] = true
+		inSessionFulfilledReceipts[purchaseId] = os.time()
 	end
 
-	-- 4. Atomic Record in PurchaseHistoryStore AFTER reward execution
+	-- 5. Atomic mark granted = true in PurchaseHistoryStore AFTER reward execution
 	local updateSuccess, _ = pcall(function()
 		return PurchaseHistoryStore:UpdateAsync(recordKey, function(saved: any)
-			return {
+			local data = saved or {
 				purchaseId = purchaseId,
 				playerId = playerId,
 				productId = productId,
 				timestamp = os.time(),
-				granted = true,
 			}
+			data.granted = true
+			return data
 		end)
 	end)
 
 	if not updateSuccess then
-		warn(string.format("[RECEIPT ERROR] DataStore record write failed for purchase %s. Requesting retry.", tostring(purchaseId)))
+		warn(string.format("[RECEIPT WARN] DataStore record write failed for purchase %s. Requesting retry.", purchaseId))
 		return Enum.ProductPurchaseDecision.NotProcessedYet
 	end
 
-	print(string.format("[RECEIPT SUCCESS] Successfully processed purchase %s for player %s", tostring(purchaseId), player.Name))
+	print(string.format("[RECEIPT SUCCESS] Successfully processed purchase %s for player %s", purchaseId, player.Name))
 	return Enum.ProductPurchaseDecision.PurchaseGranted
 end
 
