@@ -1,7 +1,8 @@
 ---
 name: roblox-01-luau-core
-description: "Skills 001-025: Núcleo de Luau, Tipado Estricto (--!strict), Genéricos, Buffer Binario, Metatablas OOP y Task Library para Roblox 2026."
+description: "Rige el núcleo de Luau (skills 001-025) para Roblox 2026: tipado estricto (--!strict), genéricos, buffer binario, metatablas OOP y la biblioteca task. Úsala al escribir cualquier script .luau del proyecto, definir tipos y contratos, o aplicar las reglas de estilo y linting (Selene/StyLua) del sistema RAASE."
 license: MIT
+allowed-tools: Read Write Bash(node:*,luau-lsp:*,rojo:*,wally:*)
 metadata:
   domain: "Luau Language & Strict Typing"
   range: "001-025"

@@ -1,11 +1,12 @@
 ---
 name: roblox-02-netsec
-description: "Skills 026-060: Seguridad de Redes Cliente-Servidor Zero-Trust, Token Bucket Rate Limiting, Honeypots, Anti-Exploits y Validación Espacial."
+description: "Rige la seguridad de red cliente-servidor Zero-Trust (skills 026-060): validación de remotes con Token Bucket, honeypots anti-RemoteSpy, verificación espacial y de tipos, UnreliableRemoteEvents, defensa anti-exploit y simulación autoritativa en el servidor. Úsala al diseñar cualquier RemoteEvent o RemoteFunction, endpoint sensible o protección contra exploiters."
 license: MIT
+allowed-tools: Read Write Bash(node:*,luau-lsp:*,rojo:*,wally:*)
 metadata:
   domain: "Networking & Anti-Exploit Security"
   range: "026-060"
-  author: "RAASE 2.0 / robloxIA"
+  author: "RAASE 2.1 / robloxIA"
 ---
 
 # roblox-02-netsec — Redes Autoritativas, Seguridad y Anti-Exploits (Skills 026 - 060)
@@ -23,23 +24,12 @@ El cliente de Roblox se ejecuta en la máquina del usuario y debe considerarse *
 
 ### 027. `net-remote-payload-validation`
 - **Regla:** Validar con `typeof()` el tipo y forma exacta de cada parámetro entrante en `RemoteEvent.OnServerEvent`.
-  ```lua
-  if typeof(targetId) ~= "string" or typeof(amount) ~= "number" or amount <= 0 then
-      return -- Rechazo silencioso o sanción
-  end
-  ```
 
 ### 028. `net-packet-size-sanitization`
 - **Regla:** Rechazar cadenas de texto superiores a 500 caracteres o tablas con más de 50 elementos para prevenir ataques de desbordamiento de memoria (OOM / packet flooding).
 
 ### 029. `net-spatial-distance-validation`
-- **Regla:** Validar la distancia euclidiana entre el personaje y el objeto con el que interactúa:
-  ```lua
-  local distance = (playerRoot.Position - targetPart.Position).Magnitude
-  if distance > 15 then
-      return -- Interacción rechazada por estar fuera de rango
-  end
-  ```
+- **Regla:** Validar la distancia euclidiana entre el personaje y el objeto con el que interactúa (`.Magnitude <= 15`).
 
 ### 030. `net-raycast-server-verification`
 - **Regla:** En armas de fuego y proyectiles, trazar un rayo en el servidor (`workspace:Raycast`) para confirmar línea de visión antes de registrar impactos.
@@ -69,14 +59,7 @@ El cliente de Roblox se ejecuta en la máquina del usuario y debe considerarse *
 - **Regla:** Compensar el lag del cliente verificando marcas de tiempo en el servidor y validando contra un búfer circular de estados pasados (máx 200 ms).
 
 ### 039. `net-anticheat-speed-audit`
-- **Regla:** Monitorear el delta de posición física en el tiempo en el servidor:
-  ```lua
-  local speed = (currentPos - lastPos).Magnitude / dt
-  if speed > maxAllowedSpeed * 1.3 then
-      -- Corregir posición (rubberband)
-      rootPart.CFrame = CFrame.new(lastPos)
-  end
-  ```
+- **Regla:** Monitorear el delta de posición física en el tiempo en el servidor: corregir con rubberbanding si excede `maxAllowedSpeed * 1.3`.
 
 ### 040. `net-anticheat-teleport-detection`
 - **Regla:** Detectar saltos espaciales instantáneos sin interacción previa con vehículos o teletransportadores registrados.
@@ -102,5 +85,49 @@ El cliente de Roblox se ejecuta en la máquina del usuario y debe considerarse *
 ### 047. `net-network-ownership-lockdown`
 - **Regla:** Asignar `part:SetNetworkOwner(nil)` forzando la simulación física en el servidor en entidades críticas (monedas, proyectiles, jefes).
 
-### 048-060. `net-advanced-telemetry-and-defense`
-- Incluye `net-replicated-storage-segregation`, `net-server-script-service-isolation`, `net-remote-call-graph-logging`, `net-ddos-packet-flood-mitigation`, `net-position-history-rewind`, `net-exploit-telemetry-beacon`.
+### 048. `net-replicated-storage-segregation`
+- **Regla:** Aislar módulos con lógica sensible exclusivamente en `ServerScriptService`, exponiendo únicamente tipos y definiciones en `ReplicatedStorage`.
+
+### 049. `net-server-script-service-isolation`
+- **Regla:** Evitar que código de servidor o secretos de configuración residan en carpetas accesibles al cliente.
+
+### 050. `net-remote-call-graph-logging`
+- **Regla:** Registrar el volumen y frecuencia de llamadas a remotos por jugador para auditar anomalías volumétricas.
+
+### 051. `net-ddos-packet-flood-mitigation`
+- **Regla:** Descartar en seco ráfagas de paquetes entrantes cuando un jugador supere el límite máximo de 50 invocaciones por segundo.
+
+### 052. `net-position-history-rewind`
+- **Regla:** Mantener un historial de 1 segundo de posiciones de entidades para validar impactos de proyectiles con lag compensation.
+
+### 053. `net-exploit-telemetry-beacon`
+- **Regla:** Enviar telemetría al servidor cuando el cliente detecta discrepancias de entorno o llamadas no autorizadas.
+
+### 054. `net-client-gui-obfuscation-signals`
+- **Regla:** Proteger elementos de interfaz críticos y señales de input de inyecciones maliciosas en el cliente.
+
+### 055. `net-ban-list-sync-messaging`
+- **Regla:** Sincronizar listas de baneo en tiempo real entre servidores mediante `MessagingService` para expulsión global inmediata.
+
+### 056. `net-packet-compression-huffman`
+- **Regla:** Comprimir buffers binarios y payloads grandes antes de transmitirlos para reducir la carga de red.
+
+### 057. `net-client-heartbeat-watchdog`
+- **Regla:** Monitorizar señales periódicas de vida del cliente para detectar pausas artificiales, congelamiento de procesos o desconexiones silenciosas.
+
+### 058. `net-server-physics-ownership-claim`
+- **Regla:** Reclamar activamente la propiedad física de partes en interacción para evitar manipulaciones de velocidad por clientes maliciosos.
+
+### 059. `net-anti-teleport-raycast-validation`
+- **Regla:** Validar trayectoria continua con raycasting entre dos posiciones consecutivas para detectar teletransporte a través de geometrías sólidas.
+
+### 060. `net-payload-schema-guard`
+- **Regla:** Aplicar esquemas tipados estrictos a los payloads de los remotos, rechazando cualquier parámetro no declarado.
+
+---
+
+## 🛡️ Anexo de Seguridad: Simulación Autoritativa del Servidor (Server-Authority Simulation)
+En la arquitectura Zero-Trust de RAASE 2.1, el servidor es el único árbitro de la simulación física y el estado del mundo:
+1. **Network Ownership Restricto:** Todas las partes interactivas, proyectiles, vehículos compartidos y drops de botín deben tener `part:SetNetworkOwner(nil)`. Esto delega el cálculo de integración de física a la CPU del servidor, anulando cualquier exploit de manipulación de velocidad o colisiones cliente-side.
+2. **Reconciliación y Predicción:** El cliente puede ejecutar predicción local de movimiento para suavidad perceptual, pero el servidor realiza reconciliación estricta; cualquier desvío mayor al umbral de tolerancia es corregido inmediatamente mediante snapshot autoritativo.
+3. **Validación de Línea de Visión (Raycast):** Ninguna interacción espacial ni disparo de proyectil es efectivo sin una validación geométrica en el servidor que confirme que la trayectoria está despejada de obstáculos impenetrables.
