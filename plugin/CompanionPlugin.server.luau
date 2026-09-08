@@ -482,27 +482,28 @@ local function handleModifyObject(args: { [string]: any }): { [string]: any }
 
 	local props = args.properties or {}
 	local modified: { string } = {}
+	local instAny = inst :: any
 
 	for propName, propValue in pairs(props) do
 		local success, err = pcall(function()
 			if propName == "Color" and type(propValue) == "table" then
-				(inst :: any).Color = Color3.fromRGB(propValue[1], propValue[2], propValue[3])
+				instAny.Color = Color3.fromRGB(propValue[1], propValue[2], propValue[3])
 			elseif propName == "Size" and type(propValue) == "table" then
-				(inst :: any).Size = Vector3.new(propValue[1], propValue[2], propValue[3])
+				instAny.Size = Vector3.new(propValue[1], propValue[2], propValue[3])
 			elseif propName == "Position" and type(propValue) == "table" then
-				(inst :: any).Position = Vector3.new(propValue[1], propValue[2], propValue[3])
+				instAny.Position = Vector3.new(propValue[1], propValue[2], propValue[3])
 			elseif propName == "Material" and type(propValue) == "string" then
 				local matEnum = (Enum.Material :: any)[propValue]
 				if matEnum then
-					(inst :: any).Material = matEnum
+					instAny.Material = matEnum
 				end
 			elseif propName == "CFrame" and type(propValue) == "table" then
 				if propValue.position then
 					local p = propValue.position
-					(inst :: any).CFrame = CFrame.new(p[1], p[2], p[3])
+					instAny.CFrame = CFrame.new(p[1], p[2], p[3])
 				end
 			else
-				(inst :: any)[propName] = propValue
+				instAny[propName] = propValue
 			end
 			table.insert(modified, propName)
 		end)
@@ -626,11 +627,12 @@ local function handleBatchSpawn(args: { [string]: any }): { [string]: any }
 			createdCount += 1
 		elseif className == "PointLight" or className == "SpotLight" or className == "SurfaceLight" then
 			local light = Instance.new(className)
+			local lightAny = light :: any
 			light.Name = data.name or "Light"
 			if data.color then light.Color = Color3.fromRGB(data.color[1], data.color[2], data.color[3]) end
-			if data.brightness then (light :: any).Brightness = data.brightness end
-			if data.range then (light :: any).Range = data.range end
-			if data.shadows ~= nil then (light :: any).Shadows = data.shadows end
+			if data.brightness then lightAny.Brightness = data.brightness end
+			if data.range then lightAny.Range = data.range end
+			if data.shadows ~= nil then lightAny.Shadows = data.shadows end
 			local targetParent = data.parentPart and container:FindFirstChild(data.parentPart, true) or container
 			light.Parent = targetParent
 			createdCount += 1
