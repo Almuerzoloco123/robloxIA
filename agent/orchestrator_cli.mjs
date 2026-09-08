@@ -16,6 +16,11 @@ const __dirname = path.dirname(__filename);
 
 const BRIDGE_URL = process.env.RAASE_BRIDGE_URL || 'http://127.0.0.1:34873';
 
+/**
+ * @param {string} endpoint
+ * @param {RequestInit} [options]
+ * @returns {Promise<any>}
+ */
 async function fetchJson(endpoint, options = {}) {
   try {
     const res = await fetch(`${BRIDGE_URL}${endpoint}`, options);
@@ -25,7 +30,8 @@ async function fetchJson(endpoint, options = {}) {
     }
     return await res.json();
   } catch (err) {
-    throw new Error(`Bridge communication error (${BRIDGE_URL}${endpoint}): ${err.message}`);
+    const message = err instanceof Error ? err.message : String(err);
+    throw new Error(`Bridge communication error (${BRIDGE_URL}${endpoint}): ${message}`);
   }
 }
 
@@ -41,6 +47,12 @@ async function getStatus() {
   }
 }
 
+/**
+ * @param {string} action
+ * @param {Record<string, any>} [args]
+ * @param {boolean} [wait]
+ * @returns {Promise<any>}
+ */
 async function sendCommand(action, args = {}, wait = true) {
   console.log(`[RAASE 2.1] Dispatching command: ${action}...`);
   const res = await fetchJson('/api/command', {
@@ -63,6 +75,10 @@ async function sendCommand(action, args = {}, wait = true) {
   return res;
 }
 
+/**
+ * @param {string} targetPath
+ * @returns {Promise<any>}
+ */
 async function inspectObject(targetPath) {
   console.log(`[RAASE 2.1] Inspecting instance: "${targetPath}"...`);
   const res = await fetchJson('/api/scene-graph/inspect', {
@@ -74,6 +90,11 @@ async function inspectObject(targetPath) {
   return res.result;
 }
 
+/**
+ * @param {string} [rootPath]
+ * @param {number} [maxDepth]
+ * @returns {Promise<any>}
+ */
 async function getSceneGraph(rootPath = 'workspace', maxDepth = 2) {
   console.log(`[RAASE 2.1] Querying Scene Graph at "${rootPath}" (depth: ${maxDepth})...`);
   const res = await fetchJson('/api/scene-graph/query', {
@@ -85,12 +106,18 @@ async function getSceneGraph(rootPath = 'workspace', maxDepth = 2) {
   return res.result;
 }
 
+/**
+ * @param {string} targetPath
+ * @param {string | Record<string, any>} propsJson
+ * @returns {Promise<any>}
+ */
 async function modifyObject(targetPath, propsJson) {
   let properties = {};
   try {
     properties = typeof propsJson === 'string' ? JSON.parse(propsJson) : propsJson;
   } catch (err) {
-    throw new Error(`Invalid JSON for properties: ${err.message}`);
+    const message = err instanceof Error ? err.message : String(err);
+    throw new Error(`Invalid JSON for properties: ${message}`);
   }
 
   console.log(`[RAASE 2.1] Mutating properties on "${targetPath}"...`);
@@ -103,6 +130,10 @@ async function modifyObject(targetPath, propsJson) {
   return res.result;
 }
 
+/**
+ * @param {string} targetPath
+ * @returns {Promise<any>}
+ */
 async function deleteObject(targetPath) {
   console.log(`[RAASE 2.1] Deleting instance "${targetPath}"...`);
   const res = await fetchJson('/api/scene-graph/delete', {
@@ -114,6 +145,12 @@ async function deleteObject(targetPath) {
   return res.result;
 }
 
+/**
+ * @param {number[]} center
+ * @param {number[]} size
+ * @param {string} [filterModel]
+ * @returns {Promise<any>}
+ */
 async function clearZone(center, size, filterModel) {
   console.log(`[RAASE 2.1] Clearing zone at [${center}] size [${size}]...`);
   const res = await fetchJson('/api/scene-graph/clear-zone', {
@@ -128,6 +165,10 @@ async function clearZone(center, size, filterModel) {
   return res.result;
 }
 
+/**
+ * @param {string} filePath
+ * @returns {Promise<any>}
+ */
 async function batchSpawn(filePath) {
   const fullPath = path.resolve(filePath);
   if (!fs.existsSync(fullPath)) {
@@ -172,7 +213,7 @@ async function main() {
         break;
 
       case 'scene-graph':
-        await getSceneGraph(args[1] || 'workspace', args[2] || 2);
+        await getSceneGraph(args[1] || 'workspace', args[2] ? parseInt(args[2], 10) : 2);
         break;
 
       case 'modify':
@@ -267,7 +308,8 @@ Commands:
         break;
     }
   } catch (err) {
-    console.error(`❌ Error: ${err.message}`);
+    const message = err instanceof Error ? err.message : String(err);
+    console.error(`❌ Error: ${message}`);
     process.exit(1);
   }
 }
