@@ -46,5 +46,5 @@ Este proyecto implementa el sistema **RAASE 2.0 (robloxIA)**: una arquitectura a
 - `bridge/`: Servidor HTTP local (puerto `34873`) con cortacircuitos de captura y worker de captura no invasivo.
 - `plugin/`: Companion Plugin para Roblox Studio (gestión con `ChangeHistoryService` y Smart Upsert).
 - `project_template/`: Estructura estándar de juego en Luau gestionada con Rojo.
-- `agent/`: Catálogo JSON de 235 skills RAASE, CLI de orquestación y prompts de sistema.
+- `agent/`: Catálogo JSON de 610 skills RAASE (35 dominios técnicos), CLI de orquestación y prompts de sistema.
 - `docs/`: Especificación formal RAASE 2.0 / 2.1.

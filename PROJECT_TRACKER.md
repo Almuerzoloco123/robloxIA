@@ -9,7 +9,7 @@
   - **Puente RPC**: Servidor HTTP nativo en Node.js (Long-polling en puerto `34873`).
   - **Visión Computacional**: Python / Node (captura host-side del Viewport de Studio).
   - **Seguridad & Datos**: Token Bucket Rate Limiter, Honeypots, DataStore `UpdateAsync` con Session Locking, DevEx 2026 con avatares R15 estrictos.
-  - **Metodología y Reglas**: skillsGV (197 skills de software e ingeniería) + RAASE (235 micro-habilidades técnicas Luau).
+  - **Metodología y Reglas**: skillsGV (209 skills de software e ingeniería) + RAASE (610 micro-habilidades técnicas Luau en 35 dominios).
 - **Aesthetic**: Código modular y desacoplado, arquitecturas Zero-Trust, interfaces adaptativas para móviles y consola, estética 3D con Future Lighting y alineación matemática de texturas.
 
 ## 2. 🚦 Strict Rules
@@ -39,7 +39,7 @@
   - Captura no invasiva sin parpadeo de ventanas (`screen_capture.py`).
   - Reglas RN-10 y RN-11 sincronizadas en `system_prompt.md` y `CLAUDE.md`.
   - Blueprint RAASE 2.0 actualizado con rediseño.
-  - Matriz indexada de las 235 micro-habilidades (`raase_skills.json`).
+  - Matriz indexada de las 610 micro-habilidades (`raase_skills.json`) en 35 dominios técnicos.
   - Instrucciones de agente (`CLAUDE.md`, `agent/system_prompt.md`).
 - `[x]` **Fase 2: Infraestructura del Enlace Local (Host Bridge & Vision Worker)**
   - Servidor HTTP REST + Long-Polling (`bridge/server.mjs`).
@@ -107,6 +107,11 @@
   3. **Directiva Anti-Neón & Matriz Estética**: Prohibición del uso de Neón en fluidos y superficies estructurales; sustitución obligatoria por `Glass` o `Terrain Water`, adición de rodapiés/cornisas (*bevels* y *trims*), antorchas de punta negra y luces físicas `PointLight.Shadows = true`.
   4. **Expansión del Catálogo a 280 Habilidades**: Creación de 3 nuevos módulos en estándar `agentskills.io`: `roblox-11-map-making` (236-250), `roblox-12-model-maker` (251-265) y `roblox-13-vfx-maker` (266-280).
   5. **DockWidget de Estado en Roblox Studio**: Sustitución del botón plano por un panel dockable interactivo con máquina de estados (🟢 ONLINE, 🟣 BUSY, 🟡 PAUSED, 🔴 OFFLINE), telemetría en tiempo real y registro de comandos.
+- `[2026-09-08]` **Remediación de Seguridad y Expansión Completa a 610 Habilidades (35 Dominios Técnicos)**:
+  1. **Remediación Crítica de Seguridad en Bridge y Plugin**: Autenticación Bearer Token con `crypto.timingSafeEqual`, restricción CORS a localhost, watchdog con timeout de 5s en `EXECUTE_LUAU` (`task.delay` + `task.cancel`), lista blanca estricta de propiedades mutables en `MODIFY_OBJECT` (`ALLOWED_MODIFY_PROPERTIES` bloqueando `Script.Source`), validación estricta de rutas en `DELETE_OBJECT`, fail-closed en `CLEAR_ZONE`, y soporte de `SpawnLocation` en `BATCH_SPAWN`.
+  2. **Descontaminación de skillsGV**: Saneamiento completo de 40 archivos de skills eliminando referencias a proyectos heredados.
+  3. **Expansión de Dominios roblox-14 a roblox-35**: 22 nuevos dominios técnicos (330 micro-habilidades en Luau 2026 `--!strict`, frontmatter `agentskills.io` y 5+ reglas inviolables).
+  4. **Sincronización Total del Catálogo Canónico**: Reconstrucción de `raase_skills.json`, `roblox-engineer/SKILL.md`, `system_prompt.md`, `CLAUDE.md` y `PROJECT_TRACKER.md` a 35 dominios técnicos y 610 micro-habilidades.
 
 ## 5. 🐞 Deferred Issues
 - *Ninguno registrado al inicio de la Fase 1.*
