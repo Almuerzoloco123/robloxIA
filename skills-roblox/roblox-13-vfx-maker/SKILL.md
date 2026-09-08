@@ -1,7 +1,8 @@
 ---
 name: roblox-13-vfx-maker
-description: "Skills 266-280: Partículas ParticleEmitter, Curvas ColorSequence/NumberSequence, Beams, Trails, Highlights, Luces Dinámicas y Presupuesto VFX."
+description: "Cubre efectos visuales (skills 266-280): partículas con ParticleEmitter, curvas ColorSequence/NumberSequence, Beams, Trails, Highlights y luces dinámicas bajo presupuesto VFX. Úsala al crear magia, fuego, portales o cualquier dinámica visual sujeta a los límites del motor."
 license: MIT
+allowed-tools: Read Write Bash(node:*,luau-lsp:*,rojo:*,wally:*)
 metadata:
   domain: "VFX, Lighting & Visual Dynamics"
   range: "266-280"

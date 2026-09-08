@@ -70,7 +70,7 @@ flowchart TD
 - **FR-07 (Detección de Colisiones AABB):** Motor de cálculo espacial que valida la no-intersección de cajas delimitadoras antes del instanciado o reubica inteligentemente props.
 - **FR-08 (Matriz Estética y Regla Anti-Neón):** Prohibición terminante de `Neon` para superficies masivas y fluidos; sustitución obligatoria por `Terrain:FillBlock` (Agua) o `Glass` con reflexión calibrada.
 - **FR-09 (DockWidget Interactivo):** Panel `DockWidgetPluginGui` acoplable con indicadores visuales de estado (Online, Busy, Paused, Offline), telemetría en tiempo real y registro de comandos.
-- **FR-10 (Catálogo de Skills 2.1):** Incorporación formal de 45 nuevas micro-habilidades (Skills 236 a 280) en los dominios `roblox-11-map-making`, `roblox-12-model-maker` y `roblox-13-vfx-maker`.
+- **FR-10 (Catálogo de Skills 2.1):** Incorporación formal de los 35 dominios técnicos completos con 610 micro-habilidades (Skills 001 a 610) bajo el estándar `agentskills.io`.
 
 #### Requerimientos No Funcionales (NFR)
 - **NFR-01 (Presupuesto de Red Luau):** El consumo de red del plugin DEBE mantenerse siempre por debajo de 120 peticiones por minuto (< 25% del límite del motor).
@@ -593,11 +593,12 @@ stateDiagram-v2
 
 #### C. Catálogo de Skills e Integración en Agente
 1. **Creación de Archivos Físicos:**
-   - `skills-roblox/roblox-11-map-making/SKILL.md`
-   - `skills-roblox/roblox-12-model-maker/SKILL.md`
-   - `skills-roblox/roblox-13-vfx-maker/SKILL.md`
+   - `skills-roblox/roblox-11-map-making/SKILL.md` (Skills 236 - 250)
+   - `skills-roblox/roblox-12-model-maker/SKILL.md` (Skills 251 - 265)
+   - `skills-roblox/roblox-13-vfx-maker/SKILL.md` (Skills 266 - 280)
+   - `skills-roblox/roblox-14-npc-ai-pathfinding/` a `roblox-35-dynamic-audio-music/` (Skills 281 - 610)
 2. **Actualización del Catálogo JSON (`agent/raase_skills.json`):**
-   - Incorporar los dominios 11, 12 y 13 con las 45 nuevas habilidades técnicas, elevando el total a **280 micro-habilidades**.
+   - Consolidar los 35 dominios técnicos completos con las **610 micro-habilidades** indexadas bajo el estándar `agentskills.io` para uso autónomo del orquestador y subagentes.
 
 ---
 

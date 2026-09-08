@@ -1,7 +1,8 @@
 ---
 name: roblox-12-model-maker
-description: "Skills 251-265: Micro-Ensamblado, Modelado Modular, Proporciones Arquitectónicas, Molduras/Bevels, Jerarquía Limpia y Directiva Anti-Neón."
+description: "Cubre fabricación de modelos (skills 251-265): micro-ensamblado modular, proporciones arquitectónicas, molduras y bevels, jerarquía limpia de instancias y la Directiva Anti-Neón. Úsala al construir props, edificios o cualquier modelo del mundo que requiera calidad visual con conteo de partes controlado."
 license: MIT
+allowed-tools: Read Write Bash(node:*,luau-lsp:*,rojo:*,wally:*)
 metadata:
   domain: "Model Making & Modular Assembly"
   range: "251-265"

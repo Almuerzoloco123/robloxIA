@@ -3,21 +3,67 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
+import { fileURLToPath } from 'node:url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 const BRIDGE_URL = process.env.RAASE_BRIDGE_URL || 'http://127.0.0.1:34873';
-const ARTIFACT_DIR = 'C:/Users/Jhonder/.gemini/antigravity-ide/brain/5419d1ac-0ef6-4adb-9340-5a361ae0d317';
-const VIEWPORT_SRC = path.resolve('viewport_latest.png');
+const ARTIFACT_DIR = process.env.ARTIFACT_DIR || path.resolve(__dirname, '..', '..', 'captures');
+const VIEWPORT_SRC = path.resolve(__dirname, '..', '..', 'viewport_latest.png');
+
+function getBridgeToken() {
+  if (process.env.ROBLOXIA_BRIDGE_TOKEN && process.env.ROBLOXIA_BRIDGE_TOKEN.trim()) {
+    return process.env.ROBLOXIA_BRIDGE_TOKEN.trim();
+  }
+  const tokenFilePath = path.resolve(__dirname, '..', '..', 'bridge', '.bridge_token');
+  if (fs.existsSync(tokenFilePath)) {
+    try {
+      return fs.readFileSync(tokenFilePath, 'utf8').trim();
+    } catch {
+      // ignore
+    }
+  }
+  return '';
+}
 
 async function sendCommand(action, args = {}) {
+  const headers = { 'Content-Type': 'application/json' };
+  const token = getBridgeToken();
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
   const res = await fetch(`${BRIDGE_URL}/api/command`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers,
     body: JSON.stringify({ action, args, wait: true })
   });
+  if (!res.ok) {
+    const txt = await res.text();
+    throw new Error(`HTTP ${res.status}: ${txt}`);
+  }
   return res.json();
 }
 
 async function captureScreen() {
-  const res = await fetch(`${BRIDGE_URL}/api/capture?force=true`, { method: 'POST' });
+  const headers = {};
+  const token = getBridgeToken();
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+  const res = await fetch(`${BRIDGE_URL}/api/capture?force=true`, {
+    method: 'POST',
+    headers
+  });
+  if (res.status === 429) {
+    console.warn('  ⚠️ Capture circuit breaker active (HTTP 429). Skipping viewport capture.');
+    return { skipped: true };
+  }
+  if (!res.ok) {
+    const txt = await res.text();
+    throw new Error(`HTTP ${res.status}: ${txt}`);
+  }
   return res.json();
 }
 
@@ -66,44 +112,68 @@ const SHOTS = [
   }
 ];
 
-async function runTour() {
-  console.log(`🎬 Capturing 7-angle visual tour for Citadel Lobby V3...`);
-
-  for (const shot of SHOTS) {
-    console.log(`📸 Shooting [${shot.name}]: ${shot.label}...`);
-
-    // Set Scriptable camera directly via Luau
-    const [cx, cy, cz] = shot.camPos;
-    const [lx, ly, lz] = shot.lookAt;
+async function restoreCamera() {
+  try {
     const luau = `
       local cam = workspace.CurrentCamera
-      cam.CameraType = Enum.CameraType.Scriptable
-      cam.CFrame = CFrame.lookAt(Vector3.new(${cx}, ${cy}, ${cz}), Vector3.new(${lx}, ${ly}, ${lz}))
-      game:GetService('Selection'):Set({})
+      if cam then
+        cam.CameraType = Enum.CameraType.Custom
+      end
       return true
     `;
     await sendCommand('EXECUTE_LUAU', { code: luau });
+    console.log('🎥 Studio camera restored to Enum.CameraType.Custom.');
+  } catch (err) {
+    console.warn('⚠️ Could not restore camera:', err.message);
+  }
+}
 
-    // Wait a brief moment for camera rendering
-    await new Promise(r => setTimeout(r, 600));
+async function runTour() {
+  console.log(`🎬 Capturing 7-angle visual tour for Citadel Lobby V3...`);
 
-    // Trigger capture
-    await captureScreen();
+  fs.mkdirSync(ARTIFACT_DIR, { recursive: true });
+  try {
+    for (const shot of SHOTS) {
+      console.log(`📸 Shooting [${shot.name}]: ${shot.label}...`);
 
-    // Copy viewport_latest.png to artifact directory
-    if (fs.existsSync(VIEWPORT_SRC)) {
-      const destPath = path.join(ARTIFACT_DIR, `${shot.name}.png`);
-      fs.copyFileSync(VIEWPORT_SRC, destPath);
-      console.log(`  -> Saved: ${destPath}`);
-    } else {
-      console.warn(`  ⚠️ Warning: viewport_latest.png not found`);
+      // Set Scriptable camera directly via Luau
+      const [cx, cy, cz] = shot.camPos;
+      const [lx, ly, lz] = shot.lookAt;
+      const luau = `
+        local cam = workspace.CurrentCamera
+        cam.CameraType = Enum.CameraType.Scriptable
+        cam.CFrame = CFrame.lookAt(Vector3.new(${cx}, ${cy}, ${cz}), Vector3.new(${lx}, ${ly}, ${lz}))
+        game:GetService('Selection'):Set({})
+        return true
+      `;
+      await sendCommand('EXECUTE_LUAU', { code: luau });
+
+      // Wait a brief moment for camera rendering
+      await new Promise(r => setTimeout(r, 600));
+
+      // Trigger capture
+      const capResult = await captureScreen();
+      if (capResult.skipped) {
+        continue;
+      }
+
+      // Copy viewport_latest.png to artifact directory
+      if (fs.existsSync(VIEWPORT_SRC)) {
+        const destPath = path.join(ARTIFACT_DIR, `${shot.name}.png`);
+        fs.copyFileSync(VIEWPORT_SRC, destPath);
+        console.log(`  -> Saved: ${destPath}`);
+      } else {
+        console.warn(`  ⚠️ Warning: viewport_latest.png not found`);
+      }
+
+      // Small delay between captures to satisfy circuit breaker if needed
+      await new Promise(r => setTimeout(r, 800));
     }
 
-    // Small delay between captures to satisfy circuit breaker if needed
-    await new Promise(r => setTimeout(r, 800));
+    console.log(`🎉 Visual tour completed! All 7 images stored in artifacts.`);
+  } finally {
+    await restoreCamera();
   }
-
-  console.log(`🎉 Visual tour completed! All 7 images stored in artifacts.`);
 }
 
 runTour().catch(e => {

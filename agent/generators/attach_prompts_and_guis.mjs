@@ -5,12 +5,40 @@
  * Matches exact coordinates and interaction logic for all 5 zones.
  */
 
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 const BRIDGE_URL = process.env.RAASE_BRIDGE_URL || 'http://127.0.0.1:34873';
 
+function getBridgeToken() {
+  if (process.env.ROBLOXIA_BRIDGE_TOKEN && process.env.ROBLOXIA_BRIDGE_TOKEN.trim()) {
+    return process.env.ROBLOXIA_BRIDGE_TOKEN.trim();
+  }
+  const tokenFilePath = path.resolve(__dirname, '..', '..', 'bridge', '.bridge_token');
+  if (fs.existsSync(tokenFilePath)) {
+    try {
+      return fs.readFileSync(tokenFilePath, 'utf8').trim();
+    } catch {
+      // ignore
+    }
+  }
+  return '';
+}
+
 async function sendCommand(action, args = {}, shouldWait = true) {
+  const headers = { 'Content-Type': 'application/json' };
+  const token = getBridgeToken();
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
   const res = await fetch(`${BRIDGE_URL}/api/command`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers,
     body: JSON.stringify({ action, args, wait: shouldWait })
   });
   if (!res.ok) {
@@ -18,6 +46,9 @@ async function sendCommand(action, args = {}, shouldWait = true) {
     throw new Error(`HTTP ${res.status}: ${txt}`);
   }
   const data = await res.json();
+  if (shouldWait && data.report && data.report.status === 'ERROR') {
+    throw new Error(`Studio Error: ${data.report.error}`);
+  }
   return data;
 }
 

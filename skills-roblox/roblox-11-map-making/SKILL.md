@@ -1,7 +1,8 @@
 ---
 name: roblox-11-map-making
-description: "Skills 236-250: Level Design, Macro-Zonificación, Biomas Procedurales, Clearance Espacial AABB, Integración de Terreno Voxel y Optimización de Streaming."
+description: "Cubre level design y construcción de mapas (skills 236-250): macro-zonificación, biomas procedurales, clearance espacial AABB, integración de terreno voxel y presupuestos de streaming. Úsala al diseñar o generar niveles completos, islas o mundos con límites de rendimiento por plataforma."
 license: MIT
+allowed-tools: Read Write Bash(node:*,luau-lsp:*,rojo:*,wally:*)
 metadata:
   domain: "Level Design & Map Making"
   range: "236-250"

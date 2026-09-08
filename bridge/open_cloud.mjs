@@ -28,12 +28,19 @@ export async function uploadAssetOpenCloud({
   }
 
   if (!apiKey) {
+    if (!process.env.ROBLOX_USER_ID) {
+      console.warn('[OpenCloud] Warning: ROBLOX_USER_ID is not set in mock mode.');
+    }
     console.warn('[OpenCloud] ROBLOX_API_KEY is not set. Returning mock asset ID for local testing.');
     const mockId = `mock_${Date.now()}`;
     return {
       assetId: mockId,
       rbxassetid: `rbxassetid://${mockId}`
     };
+  }
+
+  if (!process.env.ROBLOX_USER_ID) {
+    throw new Error('ROBLOX_USER_ID environment variable is required when ROBLOX_API_KEY is provided for Open Cloud asset creation.');
   }
 
   const mimeMap = {

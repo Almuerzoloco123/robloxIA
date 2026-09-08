@@ -16,11 +16,35 @@ const __dirname = path.dirname(__filename);
 
 const BRIDGE_URL = process.env.RAASE_BRIDGE_URL || 'http://127.0.0.1:34873';
 
+function getBridgeToken() {
+  if (process.env.ROBLOXIA_BRIDGE_TOKEN && process.env.ROBLOXIA_BRIDGE_TOKEN.trim()) {
+    return process.env.ROBLOXIA_BRIDGE_TOKEN.trim();
+  }
+  const tokenFilePath = path.resolve(__dirname, '..', 'bridge', '.bridge_token');
+  if (fs.existsSync(tokenFilePath)) {
+    try {
+      return fs.readFileSync(tokenFilePath, 'utf8').trim();
+    } catch {
+      // ignore
+    }
+  }
+  return '';
+}
+
 async function fetchJson(endpoint, options = {}) {
+  const headers = { ...(options.headers || {}) };
+  const token = getBridgeToken();
+  if (token && !headers['Authorization']) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
   try {
-    const res = await fetch(`${BRIDGE_URL}${endpoint}`, options);
+    const res = await fetch(`${BRIDGE_URL}${endpoint}`, { ...options, headers });
     if (!res.ok) {
       const errText = await res.text();
+      if (res.status === 401) {
+        throw new Error(`HTTP 401 Unauthorized: Bearer token invalid or missing. Ensure ROBLOXIA_BRIDGE_TOKEN matches the token displayed by bridge/server.mjs. Details: ${errText}`);
+      }
       throw new Error(`HTTP ${res.status}: ${errText}`);
     }
     return await res.json();
@@ -28,6 +52,7 @@ async function fetchJson(endpoint, options = {}) {
     throw new Error(`Bridge communication error (${BRIDGE_URL}${endpoint}): ${err.message}`);
   }
 }
+
 
 async function getStatus() {
   const status = await fetchJson('/api/status');
@@ -41,12 +66,16 @@ async function getStatus() {
   }
 }
 
-async function sendCommand(action, args = {}, wait = true) {
+async function sendCommand(action, args = {}, wait = true, idempotencyKey = undefined) {
   console.log(`[RAASE 2.1] Dispatching command: ${action}...`);
+  const headers = { 'Content-Type': 'application/json' };
+  if (idempotencyKey) {
+    headers['X-Idempotency-Key'] = idempotencyKey;
+  }
   const res = await fetchJson('/api/command', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ action, args, wait })
+    headers,
+    body: JSON.stringify({ action, args, wait, idempotencyKey })
   });
   if (wait && res.report) {
     if (res.report.status === 'SUCCESS') {

@@ -1,7 +1,8 @@
 ---
 name: roblox-10-tooling-automation
-description: "Skills 226-235: Rojo File-Sync, Companion Plugin RPC, Captura Host-Side de Viewport, Detección Visual de Z-Fighting y Checkerboards, Open Cloud."
+description: "Rige el pipeline de tooling y automatización de Studio (skills 226-235): sincronización Rojo, RPC del Companion Plugin (puerto 34873), captura host-side del viewport, detección visual de Z-fighting y publicación vía Open Cloud. Úsala al configurar el flujo agente→Studio, la publicación desatendida o el análisis visual de escenas."
 license: MIT
+allowed-tools: Read Write Bash(node:*,luau-lsp:*,rojo:*,wally:*)
 metadata:
   domain: "Tooling & Studio Automation"
   range: "226-235"
@@ -19,6 +20,7 @@ Este módulo rige el pipeline de enlace entre agentes de IA autónomos y el moto
 
 ### 227. `tools-studio-companion-plugin-rpc`
 - **Regla:** Servidor HTTP local en el puerto `34873` con long-polling para el despacho de comandos de escena (`SPAWN_PART`, `CREATE_ISLAND`, `SET_LIGHTING`) y telemetría de Studio.
+- **Protección de Historial y Deshacer (`tools-change-history-undo-protection`):** Toda mutación de escena en el companion plugin debe registrarse con `ChangeHistoryService:TryBeginRecording()` y `FinishRecording()` para permitir deshacer atómicamente con *Ctrl+Z*.
 
 ### 228. `tools-viewport-screen-capture`
 - **Regla:** Extracción programada del framebuffer del Viewport de Roblox Studio a nivel de host en el SO (usando Win32 API / MSS) y guardado en `viewport_latest.png`.
@@ -35,8 +37,11 @@ Este módulo rige el pipeline de enlace entre agentes de IA autónomos y el moto
 ### 232. `tools-open-cloud-publish-experience`
 - **Regla:** Publicación desatendida del lugar (`.rbxl`) y subida de assets (GLB, audio, texturas) mediante las APIs REST de Roblox Open Cloud.
 
-### 233. `tools-wally-package-management`
+### 233. `tools-open-cloud-datastore-query`
+- **Regla:** Inspección, consulta y depuración de registros en DataStores de producción vía Open Cloud DataStore API sin requerir una sesión activa de Studio.
+
+### 234. `tools-wally-package-management`
 - **Regla:** Instalación y versionado de librerías Luau (`Janitor`, `GoodSignal`, `Promise`) mediante Wally (`wally.toml`).
 
-### 234. `tools-change-history-undo-protection`
-- **Regla:** Toda mutación de escena en el companion plugin debe registrarse con `ChangeHistoryService:TryBeginRecording()` y `FinishRecording()` para permitir deshacer con *Ctrl+Z*.
+### 235. `tools-telegram-bridge-notification`
+- **Regla:** Emisión de alertas de telemetría crítica, fallos en compilación o capturas visuales de hitos directamente a canales de supervisión remota vía bot de Telegram.

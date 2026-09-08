@@ -16,6 +16,12 @@ local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
 local Debris = game:GetService("Debris")
 
+local netMod = script.Parent:WaitForChild("NetworkSecurityService", 10)
+if not netMod then
+	error("[LobbyInteractionService] Timed out waiting for NetworkSecurityService after 10s!")
+end
+local NetworkSecurityService = require(netMod :: any)
+
 local LobbyInteractionService = {}
 LobbyInteractionService.__index = LobbyInteractionService
 
@@ -123,6 +129,14 @@ function LobbyInteractionService:SetupZone1Portal(container: Instance?)
 	if not prompt then return end
 
 	prompt.Triggered:Connect(function(player: Player)
+		-- Zero-Trust Validation via NetworkSecurityService
+		if not NetworkSecurityService.validateProximity(player, trigger.Position, prompt.MaxActivationDistance + 5) then
+			return
+		end
+		if not NetworkSecurityService.checkRateLimit(player, "Trigger_Zone1_Matchmaking", 1, 5, 2) then
+			return
+		end
+
 		if self.queuedPlayers[player] then
 			self.queuedPlayers[player] = nil
 			showFloatingText(trigger, string.format("❌ %s salió de la cola de batalla", player.DisplayName), Color3.fromRGB(255, 120, 120))
@@ -181,6 +195,14 @@ function LobbyInteractionService:SetupZone2Crates(container: Instance?)
 			local prompt = trigger:FindFirstChildOfClass("ProximityPrompt")
 			if prompt then
 				prompt.Triggered:Connect(function(player: Player)
+					-- Zero-Trust Validation via NetworkSecurityService
+					if not NetworkSecurityService.validateProximity(player, trigger.Position, prompt.MaxActivationDistance + 5) then
+						return
+					end
+					if not NetworkSecurityService.checkRateLimit(player, cfg.triggerName, 1, 5, 2) then
+						return
+					end
+
 					local keys = self.playerKeys[player]
 					local keyCount = keys and (keys :: any)[cfg.keyType] or 1
 
@@ -213,6 +235,14 @@ function LobbyInteractionService:SetupZone3Potions(container: Instance?)
 		local prompt = cauldronTrigger:FindFirstChildOfClass("ProximityPrompt")
 		if prompt then
 			prompt.Triggered:Connect(function(player: Player)
+				-- Zero-Trust Validation via NetworkSecurityService
+				if not NetworkSecurityService.validateProximity(player, cauldronTrigger.Position, prompt.MaxActivationDistance + 5) then
+					return
+				end
+				if not NetworkSecurityService.checkRateLimit(player, "Trigger_Zone3_Cauldron", 1, 5, 2) then
+					return
+				end
+
 				local char = player.Character
 				if char then
 					local hum = char:FindFirstChildOfClass("Humanoid")
@@ -238,6 +268,14 @@ function LobbyInteractionService:SetupZone3Potions(container: Instance?)
 		local prompt = shopTrigger:FindFirstChildOfClass("ProximityPrompt")
 		if prompt then
 			prompt.Triggered:Connect(function(player: Player)
+				-- Zero-Trust Validation via NetworkSecurityService
+				if not NetworkSecurityService.validateProximity(player, shopTrigger.Position, prompt.MaxActivationDistance + 5) then
+					return
+				end
+				if not NetworkSecurityService.checkRateLimit(player, "Trigger_Zone3_PotionShop", 1, 5, 2) then
+					return
+				end
+
 				playSoundAt(shopTrigger, "rbxassetid://9114223784", 0.7)
 				showFloatingText(shopTrigger, "🧪 Adquiriste: Elixir de Celeridad y Maná Arcano", Color3.fromRGB(200, 160, 255))
 			end)
@@ -263,6 +301,14 @@ function LobbyInteractionService:SetupZone4Dueling(container: Instance?)
 			local prompt = trigger:FindFirstChildOfClass("ProximityPrompt")
 			if prompt then
 				prompt.Triggered:Connect(function(player: Player)
+					-- Zero-Trust Validation via NetworkSecurityService
+					if not NetworkSecurityService.validateProximity(player, trigger.Position, prompt.MaxActivationDistance + 5) then
+						return
+					end
+					if not NetworkSecurityService.checkRateLimit(player, d.name, 1, 10, 4) then
+						return
+					end
+
 					local stats = self.dummyHealths[d.key]
 					if not stats then return end
 
@@ -312,6 +358,14 @@ function LobbyInteractionService:SetupZone5Smithy(container: Instance?)
 		local prompt = anvilTrigger:FindFirstChildOfClass("ProximityPrompt")
 		if prompt then
 			prompt.Triggered:Connect(function(player: Player)
+				-- Zero-Trust Validation via NetworkSecurityService
+				if not NetworkSecurityService.validateProximity(player, anvilTrigger.Position, prompt.MaxActivationDistance + 5) then
+					return
+				end
+				if not NetworkSecurityService.checkRateLimit(player, "Trigger_Zone5_Anvil_Repair", 1, 5, 2) then
+					return
+				end
+
 				playSoundAt(anvilTrigger, "rbxassetid://9114220194", 0.9)
 				showFloatingText(anvilTrigger, "🛡️ ¡Armadura Reparada & Templada (+25% Protección)! 🔨", Color3.fromRGB(255, 190, 80))
 			end)
@@ -326,6 +380,14 @@ function LobbyInteractionService:SetupZone5Smithy(container: Instance?)
 		local prompt = ringsTrigger:FindFirstChildOfClass("ProximityPrompt")
 		if prompt then
 			prompt.Triggered:Connect(function(player: Player)
+				-- Zero-Trust Validation via NetworkSecurityService
+				if not NetworkSecurityService.validateProximity(player, ringsTrigger.Position, prompt.MaxActivationDistance + 5) then
+					return
+				end
+				if not NetworkSecurityService.checkRateLimit(player, "Trigger_Zone5_Rings_Bench", 1, 5, 2) then
+					return
+				end
+
 				playSoundAt(ringsTrigger, "rbxassetid://9114221528", 0.9)
 				showFloatingText(ringsTrigger, "💍 ¡Anillo Encantado: +15% Daño Mágico Arcana!", Color3.fromRGB(255, 140, 220))
 			end)
@@ -340,6 +402,14 @@ function LobbyInteractionService:SetupZone5Smithy(container: Instance?)
 		local prompt = npcTrigger:FindFirstChildOfClass("ProximityPrompt")
 		if prompt then
 			prompt.Triggered:Connect(function(player: Player)
+				-- Zero-Trust Validation via NetworkSecurityService
+				if not NetworkSecurityService.validateProximity(player, npcTrigger.Position, prompt.MaxActivationDistance + 5) then
+					return
+				end
+				if not NetworkSecurityService.checkRateLimit(player, "Trigger_Zone5_ElfDwarf_NPC", 1, 5, 2) then
+					return
+				end
+
 				playSoundAt(npcTrigger, "rbxassetid://9114221804", 0.7)
 				local dialogs = {
 					"«¡Saludos, joven mago! ¿Traes runas para templar?»",

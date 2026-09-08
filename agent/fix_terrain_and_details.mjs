@@ -1,66 +1,81 @@
-#!/usr/bin/env node
 // @ts-check
-import fs from 'node:fs';
-import path from 'node:path';
+import { sendCommand, inspectObject, querySceneGraph } from './lib/bridge-client.mjs';
 
-const BRIDGE_URL = process.env.RAASE_BRIDGE_URL || 'http://127.0.0.1:34873';
-
-async function sendCommand(action, args = {}, shouldWait = true) {
-  const res = await fetch(`${BRIDGE_URL}/api/command`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ action, args, wait: shouldWait })
-  });
-  if (!res.ok) {
-    const txt = await res.text();
-    throw new Error(`HTTP ${res.status}: ${txt}`);
+async function introspectTerrain() {
+  console.log('🔍 [RN-10 Introspection] Inspecting workspace.Terrain before modifications...');
+  try {
+    const terrainInfo = await inspectObject('workspace.Terrain');
+    if (terrainInfo && terrainInfo.result && terrainInfo.result.found) {
+      console.log(`  ℹ️ Verified workspace.Terrain is active in DataModel.`);
+      return true;
+    }
+  } catch (err) {
+    console.warn('  ⚠️ Terrain inspection warning:', err.message);
   }
-  const data = await res.json();
-  if (shouldWait && data.report && data.report.status === 'ERROR') {
-    throw new Error(`Studio Error: ${data.report.error}`);
-  }
-  return data;
+  return false;
 }
 
 async function fixTerrain() {
-  console.log('🧹 Clearing obstructive terrain rock blocks with Air...');
-  // Clear obstructive rocks
-  await sendCommand('SET_TERRAIN_VOXELS', {
-    shape: 'Block',
-    material: 'Air',
-    position: [0, 20, -100],
-    size: [300, 60, 100]
-  });
-  await sendCommand('SET_TERRAIN_VOXELS', {
-    shape: 'Block',
-    material: 'Air',
-    position: [-95, 20, -40],
-    size: [140, 60, 140]
-  });
-  await sendCommand('SET_TERRAIN_VOXELS', {
-    shape: 'Block',
-    material: 'Air',
-    position: [95, 20, -40],
-    size: [140, 60, 140]
-  });
+  const cliArgs = process.argv.slice(2);
+  const isApply = cliArgs.includes('--apply');
+  const isDryRun = !isApply || cliArgs.includes('--dry-run');
 
-  console.log('🌱 Smoothing flat grass plain...');
-  // Flat clear grass ground
-  await sendCommand('SET_TERRAIN_VOXELS', {
-    shape: 'Block',
-    material: 'Grass',
-    position: [0, -4, 0],
-    size: [260, 8, 260]
-  });
+  console.log('🏔️ ========================================================');
+  console.log('   RAASE 2.1 — Terrain Voxel Leveling & Backdrop Modifier   ');
+  console.log(`   Execution Mode: ${isApply ? '⚡ APPLY (Active Mutation)' : '🛡️ DRY-RUN (Simulation Only)'}`);
+  console.log('========================================================');
 
-  console.log('🏔️ Creating majestic distant mountain backdrop at Z = -140...');
-  // Distant majestic mountain wall well behind the castle
-  await sendCommand('SET_TERRAIN_VOXELS', {
-    shape: 'Block',
-    material: 'Rock',
-    position: [0, 16, -135],
-    size: [280, 40, 45]
-  });
+  // 1. Mandatory Introspection
+  await introspectTerrain();
+
+  const operations = [
+    {
+      desc: 'Clear obstructive rock blocks (Central East/West)',
+      action: 'SET_TERRAIN_VOXELS',
+      args: { shape: 'Block', material: 'Air', position: [0, 20, -100], size: [300, 60, 100] }
+    },
+    {
+      desc: 'Clear West quadrant rock terrain',
+      action: 'SET_TERRAIN_VOXELS',
+      args: { shape: 'Block', material: 'Air', position: [-95, 20, -40], size: [140, 60, 140] }
+    },
+    {
+      desc: 'Clear East quadrant rock terrain',
+      action: 'SET_TERRAIN_VOXELS',
+      args: { shape: 'Block', material: 'Air', position: [95, 20, -40], size: [140, 60, 140] }
+    },
+    {
+      desc: 'Fill flat clear grass ground plane',
+      action: 'SET_TERRAIN_VOXELS',
+      args: { shape: 'Block', material: 'Grass', position: [0, -4, 0], size: [260, 8, 260] }
+    },
+    {
+      desc: 'Build distant mountain backdrop at Z = -135',
+      action: 'SET_TERRAIN_VOXELS',
+      args: { shape: 'Block', material: 'Rock', position: [0, 16, -135], size: [280, 40, 45] }
+    }
+  ];
+
+  if (isDryRun) {
+    console.log('\n🛡️ [DRY-RUN SUMMARY — No voxel changes sent to Studio]');
+    for (const [i, op] of operations.entries()) {
+      console.log(`  ${i + 1}. [${op.args.material}] ${op.desc}`);
+      console.log(`     Pos: [${op.args.position.join(', ')}] | Size: [${op.args.size.join(', ')}]`);
+    }
+    console.log('\n➡️ To apply these modifications to Studio, run with: node agent/fix_terrain_and_details.mjs --apply\n');
+    return;
+  }
+
+  // 2. Apply modifications
+  for (const [i, op] of operations.entries()) {
+    console.log(`🔨 [${i + 1}/${operations.length}] Executing: ${op.desc}...`);
+    await sendCommand(op.action, op.args, true);
+  }
+
+  console.log('✅ All terrain voxel operations applied successfully!');
 }
 
-fixTerrain().catch(console.error);
+fixTerrain().catch(err => {
+  console.error('❌ Terrain fix failed:', err);
+  process.exit(1);
+});

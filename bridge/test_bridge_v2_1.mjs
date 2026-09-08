@@ -9,14 +9,20 @@ const __dirname = path.dirname(__filename);
 
 const TEST_PORT = 34879;
 const BASE_URL = `http://127.0.0.1:${TEST_PORT}`;
+const TEST_TOKEN = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
 
 async function runTests() {
   console.log('🧪 Starting RAASE 2.1 Bridge Test Suite on port', TEST_PORT);
 
-  // 1. Spawn bridge server with custom port
+  // 1. Spawn bridge server with custom port and known Bearer token
   const serverProc = spawn('node', ['server.mjs'], {
     cwd: __dirname,
-    env: { ...process.env, PORT: String(TEST_PORT) },
+    env: {
+      ...process.env,
+      PORT: String(TEST_PORT),
+      ROBLOXIA_BRIDGE_TOKEN: TEST_TOKEN,
+      ROBLOXIA_NO_WRITE_TOKEN_FILE: '1'
+    },
     stdio: ['pipe', 'pipe', 'pipe']
   });
 
@@ -28,29 +34,61 @@ async function runTests() {
     console.error('[Bridge Error]', d.toString().trim());
   });
 
-  // Wait for server to start
-  await new Promise(resolve => setTimeout(resolve, 1000));
+  // Wait for server to start by polling /api/status up to 5s
+  let started = false;
+  const startTime = Date.now();
+  while (Date.now() - startTime < 5000) {
+    try {
+      const res = await fetch(`${BASE_URL}/api/status`);
+      if (res.ok) {
+        started = true;
+        break;
+      }
+    } catch {}
+    await new Promise(r => setTimeout(r, 100));
+  }
+  if (!started) {
+    throw new Error(`Server failed to start and respond on ${BASE_URL}/api/status within 5s`);
+  }
+
+  const authHeaders = {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${TEST_TOKEN}`
+  };
 
   try {
-    // Test 1: Status endpoint
-    console.log('Test 1: Health & Status');
+    // Test 1: Health and status endpoint (Public)
+    console.log('Test 1: Health & Status (Public)');
     const resStatus = await fetch(`${BASE_URL}/api/status`);
     assert.strictEqual(resStatus.status, 200);
     const dataStatus = await resStatus.json();
     assert.strictEqual(dataStatus.bridge, 'running');
     assert.strictEqual(dataStatus.port, TEST_PORT);
+    assert.strictEqual(dataStatus.authRequired, true);
     console.log('  ✓ Status endpoint OK');
 
-    // Test 2: Batch command enqueueing (async mode)
-    console.log('Test 2: Batch command enqueueing');
-    const batchRes = await fetch(`${BASE_URL}/api/command/batch`, {
+    // Test 2: C1 Security - Reject unauthenticated requests
+    console.log('Test 2: C1 Security - Reject unauthenticated calls with HTTP 401');
+    const unauthPoll = await fetch(`${BASE_URL}/api/poll`);
+    assert.strictEqual(unauthPoll.status, 401, 'Poll without auth should return 401');
+    const unauthCmd = await fetch(`${BASE_URL}/api/command`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'SPAWN_PART' })
+    });
+    assert.strictEqual(unauthCmd.status, 401, 'Command without auth should return 401');
+    console.log('  ✓ Unauthenticated requests rejected with 401');
+
+    // Test 3: Batch command enqueueing (authenticated)
+    console.log('Test 3: Batch command enqueueing with Bearer Auth');
+    const batchRes = await fetch(`${BASE_URL}/api/command/batch`, {
+      method: 'POST',
+      headers: authHeaders,
       body: JSON.stringify({
         parent: 'Workspace.TestModel',
         wait: false,
         instances: [
-          { name: 'Part1', size: [4, 1, 4], position: [0, 5, 0], material: 'Glass' },
+          { name: 'Spawn1', className: 'SpawnLocation', position: [0, 5, 0], duration: 0 },
           { name: 'Part2', size: [2, 2, 2], position: [0, 10, 0], material: 'Cobblestone' }
         ]
       })
@@ -61,22 +99,52 @@ async function runTests() {
     assert.strictEqual(batchData.enqueued.action, 'BATCH_SPAWN');
     console.log('  ✓ Batch command enqueued OK');
 
-    // Test 3: Polling by simulated Studio plugin
-    console.log('Test 3: Studio long-poll retrieval');
-    const pollRes = await fetch(`${BASE_URL}/api/poll`);
+    // Test 4: Studio long-poll retrieval (authenticated)
+    console.log('Test 4: Studio long-poll retrieval');
+    const pollRes = await fetch(`${BASE_URL}/api/poll`, { headers: authHeaders });
     assert.strictEqual(pollRes.status, 200);
     const pollData = await pollRes.json();
     assert.strictEqual(pollData.action, 'BATCH_SPAWN');
     assert.strictEqual(pollData.id, batchData.enqueued.id);
-    console.log('  ✓ Poller received BATCH_SPAWN action');
+    assert.ok(pollData.reportNonce, 'Poller must receive reportNonce');
+    assert.strictEqual(batchData.enqueued.reportNonce, undefined, 'Client must NOT receive reportNonce');
+    console.log('  ✓ Poller received BATCH_SPAWN action with exclusive reportNonce');
 
-    // Test 4: Report submission from simulated Studio plugin
-    console.log('Test 4: Studio report execution');
-    const reportRes = await fetch(`${BASE_URL}/api/report`, {
+    // Test 5: C4 Security - Reject orphan reports with invalid commandId
+    console.log('Test 5: C4 Security - Reject orphan reports (HTTP 400)');
+    const orphanRes = await fetch(`${BASE_URL}/api/report`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: authHeaders,
+      body: JSON.stringify({
+        commandId: 'cmd_non_existent_12345',
+        status: 'SUCCESS'
+      })
+    });
+    assert.strictEqual(orphanRes.status, 400, 'Orphan report must be rejected with 400');
+    console.log('  ✓ Orphan report rejected cleanly with HTTP 400');
+
+    // Test 5b: Anti-Forgery - Reject report without valid reportNonce (HTTP 403)
+    console.log('Test 5b: Anti-Forgery - Reject report with forged or missing reportNonce (HTTP 403)');
+    const forgedRes = await fetch(`${BASE_URL}/api/report`, {
+      method: 'POST',
+      headers: authHeaders,
       body: JSON.stringify({
         commandId: pollData.id,
+        reportNonce: 'forged_fake_nonce_999',
+        status: 'SUCCESS'
+      })
+    });
+    assert.strictEqual(forgedRes.status, 403, 'Forged report without correct reportNonce must return 403');
+    console.log('  ✓ Forged report rejected cleanly with HTTP 403');
+
+    // Test 6: Report submission and C4 fail-closed behavior
+    console.log('Test 6: Valid report submission and Fail-Closed status');
+    const reportRes = await fetch(`${BASE_URL}/api/report`, {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({
+        commandId: pollData.id,
+        reportNonce: pollData.reportNonce,
         status: 'SUCCESS',
         details: { createdCount: 2, parent: 'Workspace.TestModel' },
         telemetry: { memoryMb: 350.2, primitives: 120, instances: 450 }
@@ -85,27 +153,77 @@ async function runTests() {
     assert.strictEqual(reportRes.status, 200);
     const reportData = await reportRes.json();
     assert.strictEqual(reportData.success, true);
-    console.log('  ✓ Report recorded OK');
+    assert.strictEqual(reportData.recorded.status, 'SUCCESS');
+    console.log('  ✓ Valid report recorded OK with matching reportNonce');
 
-    // Test 5: Synchronous Scene Graph Query (GET_SCENE_GRAPH with wait)
-    console.log('Test 5: Synchronous Scene Graph Query with waiter resolution');
+    // Test 7: Idempotency support
+    console.log('Test 7: Command Idempotency with idempotencyKey');
+    const idempotencyKey = 'idem_key_test_999';
+    // Enqueue command with idempotency key
+    const cmd1Res = await fetch(`${BASE_URL}/api/command`, {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({
+        action: 'SPAWN_PART',
+        args: { name: 'IdempotentPart' },
+        wait: false,
+        idempotencyKey
+      })
+    });
+    assert.strictEqual(cmd1Res.status, 201);
+    const cmd1Data = await cmd1Res.json();
+    const cmd1Id = cmd1Data.enqueued.id;
+
+    // Simulate poll
+    const pollIdem = await (await fetch(`${BASE_URL}/api/poll`, { headers: authHeaders })).json();
+    assert.strictEqual(pollIdem.id, cmd1Id);
+
+    // Report success
+    await fetch(`${BASE_URL}/api/report`, {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({
+        commandId: cmd1Id,
+        reportNonce: pollIdem.reportNonce,
+        status: 'SUCCESS',
+        details: { spawned: 'IdempotentPart' }
+      })
+    });
+
+    // Replay command with identical idempotencyKey
+    const replayRes = await fetch(`${BASE_URL}/api/command`, {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify({
+        action: 'SPAWN_PART',
+        args: { name: 'IdempotentPart' },
+        wait: true,
+        idempotencyKey
+      })
+    });
+    assert.strictEqual(replayRes.status, 200);
+    const replayData = await replayRes.json();
+    assert.strictEqual(replayData.idempotentReplay, true, 'Replayed command should return cached result');
+    assert.strictEqual(replayData.commandId, cmd1Id);
+    console.log('  ✓ Idempotent replay returned cached result without duplicate execution');
+
+    // Test 8: Synchronous Scene Graph Query
+    console.log('Test 8: Synchronous Scene Graph Query with waiter resolution');
     const queryPromise = fetch(`${BASE_URL}/api/scene-graph/query`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: authHeaders,
       body: JSON.stringify({ rootPath: 'Workspace.TestModel', maxDepth: 2 })
     });
 
-    // Simulate Studio polling the command
-    const queryPollRes = await fetch(`${BASE_URL}/api/poll`);
-    const queryPollData = await queryPollRes.json();
+    const queryPollData = await (await fetch(`${BASE_URL}/api/poll`, { headers: authHeaders })).json();
     assert.strictEqual(queryPollData.action, 'GET_SCENE_GRAPH');
 
-    // Simulate Studio fulfilling the report
     await fetch(`${BASE_URL}/api/report`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: authHeaders,
       body: JSON.stringify({
         commandId: queryPollData.id,
+        reportNonce: queryPollData.reportNonce,
         status: 'SUCCESS',
         details: {
           totalScanned: 2,
@@ -121,9 +239,9 @@ async function runTests() {
     assert.strictEqual(queryData.success, true);
     assert.strictEqual(queryData.result.returnedCount, 2);
     assert.strictEqual(queryData.result.root.name, 'TestModel');
-    console.log('  ✓ Synchronous Scene Graph query resolved cleanly!');
+    console.log('  ✓ Synchronous Scene Graph query resolved cleanly');
 
-    console.log('\n🎉 ALL RAASE 2.1 BRIDGE UNIT & INTEGRATION TESTS PASSED!\n');
+    console.log('\n🎉 ALL RAASE 2.1 BRIDGE SECURITY & FUNCTIONAL TESTS PASSED!\n');
   } finally {
     serverProc.kill();
   }

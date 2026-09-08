@@ -8,24 +8,13 @@
  * sunken dueling arena, vaulted smithy with Elf-Dwarf NPC, and towering perimeter pine forest.
  */
 
-const BRIDGE_URL = process.env.RAASE_BRIDGE_URL || 'http://127.0.0.1:34873';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { getBridgeToken, sendCommand, inspectObject, querySceneGraph, BRIDGE_URL } from '../lib/bridge-client.mjs';
 
-async function sendCommand(action, args = {}, shouldWait = true) {
-  const res = await fetch(`${BRIDGE_URL}/api/command`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ action, args, wait: shouldWait })
-  });
-  if (!res.ok) {
-    const txt = await res.text();
-    throw new Error(`HTTP ${res.status}: ${txt}`);
-  }
-  const data = await res.json();
-  if (shouldWait && data.report && data.report.status === 'ERROR') {
-    throw new Error(`Studio Error: ${data.report.error}`);
-  }
-  return data;
-}
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 async function deleteModel(modelName) {
   try {
@@ -36,14 +25,15 @@ async function deleteModel(modelName) {
   }
 }
 
-async function spawnBatch(modelName, instances, parent = 'workspace') {
+async function spawnBatch(modelName, instances, parent = 'workspace', upsert = true) {
   const CHUNK_SIZE = 100;
-  console.log(`📦 Spawning model "${modelName}" (${instances.length} instances total)...`);
+  console.log(`📦 Spawning model "${modelName}" (${instances.length} instances total, upsert: ${upsert})...`);
   for (let i = 0; i < instances.length; i += CHUNK_SIZE) {
     const chunk = instances.slice(i, i + CHUNK_SIZE);
     await sendCommand('BATCH_SPAWN', {
       modelName,
       parent,
+      upsert,
       instances: chunk
     }, true);
     console.log(`  -> Spawned chunk ${Math.floor(i / CHUNK_SIZE) + 1}/${Math.ceil(instances.length / CHUNK_SIZE)} (${chunk.length} items)`);
@@ -2531,13 +2521,33 @@ function buildSpawnAndEntrance() {
   return parts;
 }
 
+async function introspectLobby() {
+  console.log('🔍 [RN-10 Introspection] Inspecting workspace for existing lobby architecture...');
+  const inspectionResults = {};
+  for (const name of ['MagicLobby', 'MagicLobby_V2', 'MagicLobby_V3']) {
+    try {
+      const info = await inspectObject(`workspace.${name}`);
+      if (info && info.result && info.result.found) {
+        inspectionResults[name] = info.result;
+        console.log(`  ℹ️ Found existing "${name}" in scene: ${info.result.className} with ${info.result.childCount || 0} children`);
+      } else {
+        inspectionResults[name] = null;
+      }
+    } catch {
+      inspectionResults[name] = null;
+    }
+  }
+  return inspectionResults;
+}
+
 // -----------------------------------------------------------------------------
 // LIGHTING SETUP (WARM, BRIGHT DAYLIGHT & CRISP SHADOWS)
 // -----------------------------------------------------------------------------
-async function configureLighting() {
-  console.log('☀️ Configuring clear daylight with warm sun and crisp shadows...');
+async function configureLighting(replaceEnvironment = false) {
+  console.log(`☀️ Configuring daylight with Future lighting (replaceEnvironment: ${replaceEnvironment})...`);
   const lua = `
     local Lighting = game:GetService("Lighting")
+    pcall(function() (Lighting :: any).Technology = Enum.Technology.Future end)
     Lighting.ClockTime = 15.8
     Lighting.Brightness = 2.8
     Lighting.OutdoorAmbient = Color3.fromRGB(140, 140, 148)
@@ -2546,31 +2556,37 @@ async function configureLighting() {
     Lighting.GlobalShadows = true
     Lighting.ExposureCompensation = 0.15
 
-    -- Remove any dark foggy atmosphere
+    local replaceEnv = ${replaceEnvironment ? 'true' : 'false'}
     local existingAtm = Lighting:FindFirstChildOfClass("Atmosphere")
-    if existingAtm then
+    if replaceEnv and existingAtm then
       existingAtm:Destroy()
+      existingAtm = nil
     end
 
-    local atm = Instance.new("Atmosphere")
-    atm.Density = 0.22
-    atm.Offset = 0.1
-    atm.Color = Color3.fromRGB(200, 208, 220)
-    atm.Decay = Color3.fromRGB(110, 115, 125)
-    atm.Glare = 0.1
-    atm.Haze = 0.4
-    atm.Parent = Lighting
+    if not existingAtm then
+      local atm = Instance.new("Atmosphere")
+      atm.Density = 0.22
+      atm.Offset = 0.1
+      atm.Color = Color3.fromRGB(200, 208, 220)
+      atm.Decay = Color3.fromRGB(110, 115, 125)
+      atm.Glare = 0.1
+      atm.Haze = 0.4
+      atm.Parent = Lighting
+    end
 
     local existingBloom = Lighting:FindFirstChildOfClass("BloomEffect")
-    if existingBloom then
+    if replaceEnv and existingBloom then
       existingBloom:Destroy()
+      existingBloom = nil
     end
 
-    local bloom = Instance.new("BloomEffect")
-    bloom.Intensity = 0.12
-    bloom.Size = 10
-    bloom.Threshold = 2.2
-    bloom.Parent = Lighting
+    if not existingBloom then
+      local bloom = Instance.new("BloomEffect")
+      bloom.Intensity = 0.12
+      bloom.Size = 10
+      bloom.Threshold = 2.2
+      bloom.Parent = Lighting
+    end
 
     return "Lighting configured successfully"
   `;
@@ -2581,19 +2597,19 @@ async function configureLighting() {
 // MAIN EXECUTION PIPELINE
 // -----------------------------------------------------------------------------
 async function main() {
+  const cliArgs = process.argv.slice(2);
+  const isApply = cliArgs.includes('--apply');
+  const isDryRun = !isApply || cliArgs.includes('--dry-run');
+
   console.log('🏰 ========================================================');
   console.log('   RAASE 2.1 — Harry Potter Reimagined Citadel Lobby (V3)   ');
+  console.log(`   Execution Mode: ${isApply ? '⚡ APPLY (Active Mutation)' : '🛡️ DRY-RUN (Simulation Only)'}`);
   console.log('========================================================');
 
-  // 1. Wipe old legacy models if any exist
-  await deleteModel('MagicLobby');
-  await deleteModel('MagicLobby_V2');
-  await deleteModel('MagicLobby_V3');
+  // 1. Mandatory Scene Introspection before any action (RN-10)
+  const existing = await introspectLobby();
 
-  // 2. Set Lighting
-  await configureLighting();
-
-  // 3. Assemble Architecture
+  // 2. Assemble Architecture
   console.log('🔨 Assembling architectural sections...');
   const pavementParts = buildUrbanPavement();
   const zone1Parts = buildZone1CastlePortal();
@@ -2617,8 +2633,29 @@ async function main() {
 
   console.log(`✨ Total instances generated: ${totalParts.length}`);
 
-  // 4. Batch Spawn into Studio
-  await spawnBatch('MagicLobby_V3', totalParts, 'workspace');
+  if (isDryRun) {
+    console.log('\n🛡️ [DRY-RUN SUMMARY — No changes made to Studio]');
+    console.log(`  • Planned target model: workspace.MagicLobby_V3 (${totalParts.length} instances)`);
+    console.log(`  • Existing scene models:`, Object.entries(existing).filter(([_, v]) => Boolean(v)).map(([k, v]) => `${k} (${v.childCount} children)`).join(', ') || 'None');
+    console.log(`  • Lighting policy: Preserving existing Atmosphere/Bloom unless --replace-env is specified.`);
+    console.log(`\n➡️ To apply these changes to Roblox Studio, rerun with: node agent/generators/build_magic_lobby.mjs --apply\n`);
+    return;
+  }
+
+  // 3. APPLY: Idempotent wipe/upsert of confirmed legacy models
+  for (const [name, found] of Object.entries(existing)) {
+    if (found && (name === 'MagicLobby' || name === 'MagicLobby_V2')) {
+      console.log(`  🗑️ Removing confirmed legacy model "${name}"...`);
+      await deleteModel(name);
+    }
+  }
+
+  // 4. Set Lighting (preserve user environment by default)
+  const replaceEnv = cliArgs.includes('--replace-env');
+  await configureLighting(replaceEnv);
+
+  // 5. Batch Spawn into Studio with idempotent upsert
+  await spawnBatch('MagicLobby_V3', totalParts, 'workspace', true);
 
   console.log('🎉 Citadel Lobby V3 successfully built in Roblox Studio!');
 }
