@@ -77,9 +77,13 @@
   6. Corrección de articulación `Neck` en `UpperTorso` y transformación de puntería a espacio objeto en `CharacterController`.
   7. Captura de pantalla enfocada en el rect de la ventana de Roblox Studio.
   8. Protecciones con `pcall` en `Janitor:Cleanup()` y middleware `listenGuarded` en `NetworkSecurityService`.
-- `[2026-09-07]` **Decisión de Rediseño de Protocolo**: Reemplazo de supuestos WebSockets en Studio por Servidor HTTP Long-Polling en Node.js debido a restricciones del motor de Luau (`HttpService` no tiene cliente WebSocket).
-- `[2026-09-07]` **Decisión de Visión Host-Side**: El recorte de pantalla se ejecuta a nivel de host en el SO porque Roblox Studio no permite a los plugins escribir imágenes PNG a disco.
-- `[2026-09-07]` **Decisión de Integración con skillsGV**: Se adopta el estándar de 197 skills como meta-orquestador (DoD checker, Decision Gate, Router, Project Tracker), integrando las 235 habilidades de RAASE como catálogo de dominio técnico Luau.
+- `[2026-09-07]` **Aprobación de la Especificación de Arquitectura RAASE 2.1 (SDD Master Blueprint)**:
+  1. **Grafo de Escena Bidireccional**: Especificación de `GET_SCENE_GRAPH`, `INSPECT_OBJECT`, `DELETE_OBJECT`, `MODIFY_OBJECT`, y `CLEAR_ZONE` con filtros espaciales AABB, limitadores de profundidad y ChangeHistoryService undo safety.
+  2. **Erradicación de Throttling HTTP 429**: Diseño de `BATCH_SPAWN` para agrupar hasta 250 partes por payload HTTP, reduciendo el consumo de la cuota de 500 req/min en un 99.6%.
+  3. **Directiva Anti-Neón & Matriz Estética**: Prohibición del uso de Neón en fluidos y superficies estructurales; sustitución obligatoria por `Glass` o `Terrain Water`, adición de rodapiés/cornisas (*bevels* y *trims*), antorchas de punta negra y luces físicas `PointLight.Shadows = true`.
+  4. **Expansión del Catálogo a 280 Habilidades**: Creación de 3 nuevos módulos en estándar `agentskills.io`: `roblox-11-map-making` (236-250), `roblox-12-model-maker` (251-265) y `roblox-13-vfx-maker` (266-280).
+  5. **DockWidget de Estado en Roblox Studio**: Sustitución del botón plano por un panel dockable interactivo con máquina de estados (🟢 ONLINE, 🟣 BUSY, 🟡 PAUSED, 🔴 OFFLINE), telemetría en tiempo real y registro de comandos.
 
 ## 5. 🐞 Deferred Issues
 - *Ninguno registrado al inicio de la Fase 1.*
+

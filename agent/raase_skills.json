@@ -1,7 +1,7 @@
 {
-  "system": "RAASE 2.0 (robloxIA)",
-  "version": "2.0.0",
-  "totalSkills": 235,
+  "system": "RAASE 2.1 (robloxIA)",
+  "version": "2.1.0",
+  "totalSkills": 280,
   "domains": [
     {
       "id": "domain-1",
@@ -306,6 +306,72 @@
         "tools-open-cloud-datastore-query",
         "tools-wally-package-management",
         "tools-telegram-bridge-notification"
+      ]
+    },
+    {
+      "id": "domain-11",
+      "name": "Level Design & Map Making",
+      "range": "236-250",
+      "skills": [
+        "map-zoning-macro-layout",
+        "map-spatial-aabb-clearance",
+        "map-terrain-voxel-biome-blending",
+        "map-streaming-budget-allocation",
+        "map-occlusion-culling-portals",
+        "map-player-circulation-chokepoints",
+        "map-foliage-raycast-scatter",
+        "map-verticality-ladder-stair-ratios",
+        "map-water-volume-terrain-integration",
+        "map-acoustic-reverb-zones",
+        "map-safe-spawn-distribution",
+        "map-boundary-soft-kill-barriers",
+        "map-landmark-sightline-verification",
+        "map-lod-distance-mesh-swapping",
+        "map-memory-draw-call-budget-audit"
+      ]
+    },
+    {
+      "id": "domain-12",
+      "name": "Model Making & Modular Assembly",
+      "range": "251-265",
+      "skills": [
+        "model-primarypart-bounding-pivot",
+        "model-anchored-root-compliance",
+        "model-bevel-trim-molding-profile",
+        "model-anti-neon-material-matrix",
+        "model-architectural-proportions-golden",
+        "model-grain-orientation-alignment",
+        "model-modular-wall-window-snap-grid",
+        "model-hierarchical-grouping-hygiene",
+        "model-massless-decor-welding",
+        "model-surface-appearance-pbr-binding",
+        "model-collision-fidelity-hull-box",
+        "model-csg-watertight-primitive-slicing",
+        "model-sign-heraldry-contrast-ratio",
+        "model-light-fixture-housing-geometry",
+        "model-assembly-memory-footprint-cap"
+      ]
+    },
+    {
+      "id": "domain-13",
+      "name": "VFX, Lighting & Visual Dynamics",
+      "range": "266-280",
+      "skills": [
+        "vfx-particle-emitter-curves",
+        "vfx-color-temperature-sequence",
+        "vfx-rate-and-budget-policing",
+        "vfx-pointlight-future-shadows",
+        "vfx-beam-texture-scrolling-speed",
+        "vfx-trail-motion-persistence",
+        "vfx-highlight-instance-budget",
+        "vfx-light-emission-transparency-balance",
+        "vfx-atmosphere-haze-decay-tuning",
+        "vfx-bloom-threshold-suppression",
+        "vfx-fire-procedural-smoke-layering",
+        "vfx-sound-emitter-3d-roll-off",
+        "vfx-surface-light-directional-cast",
+        "vfx-depth-of-field-focal-distance",
+        "vfx-janitor-cleanup-lifecycle"
       ]
     }
   ]

@@ -37,12 +37,60 @@ const executionHistory = [];
 /** @type {Array<(cmd: Command | { action: 'NOOP' }) => void>} */
 const waitingPollers = [];
 
+/** @type {Map<string, (report: ExecutionReport) => void>} */
+const reportWaiters = new Map();
+
 /** @type {{ connected: boolean, lastSeen: number | null, telemetry: Record<string, any> }} */
 const studioState = {
   connected: false,
   lastSeen: null,
   telemetry: {}
 };
+
+/**
+ * Dispatch a command to Studio with optional synchronous waiting for report
+ * @param {string} action
+ * @param {Record<string, any>} args
+ * @param {boolean} shouldWait
+ * @param {number} timeoutMs
+ * @returns {Promise<{ cmd: Command, report?: ExecutionReport }>}
+ */
+function dispatchCommand(action, args = {}, shouldWait = false, timeoutMs = 15000) {
+  const id = `cmd_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+  const cmd = { id, action, args, timestamp: Date.now() };
+
+  if (waitingPollers.length > 0) {
+    const poller = waitingPollers.shift();
+    poller?.(cmd);
+  } else {
+    commandQueue.push(cmd);
+  }
+
+  if (!shouldWait) {
+    return Promise.resolve({ cmd });
+  }
+
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => {
+      reportWaiters.delete(id);
+      resolve({
+        cmd,
+        report: {
+          commandId: id,
+          status: 'ERROR',
+          error: `Timed out waiting for Studio response after ${timeoutMs}ms`,
+          timestamp: Date.now()
+        }
+      });
+    }, timeoutMs);
+
+    reportWaiters.set(id, (report) => {
+      clearTimeout(timer);
+      reportWaiters.delete(id);
+      resolve({ cmd, report });
+    });
+  });
+}
 
 /**
  * Send JSON response with appropriate headers
@@ -72,8 +120,8 @@ function parseJsonBody(req) {
     let body = '';
     req.on('data', chunk => {
       body += chunk;
-      if (body.length > 5 * 1024 * 1024) { // 5MB guard
-        reject(new Error('Payload too large'));
+      if (body.length > 25 * 1024 * 1024) { // 25MB guard for large scene graphs & batches
+        reject(new Error('Payload too large (>25MB)'));
       }
     });
     req.on('end', () => {
@@ -149,28 +197,100 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
-    // 3. Enqueue command from Agent CLI
+    // 3. Enqueue command from Agent CLI (supports synchronous wait)
     if (req.method === 'POST' && url.pathname === '/api/command') {
       const payload = await parseJsonBody(req);
       if (!payload.action) {
         return sendJson(res, 400, { success: false, error: 'Missing required field: action' });
       }
 
-      const cmd = {
-        id: payload.id || `cmd_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
-        action: payload.action,
-        args: payload.args || {},
-        timestamp: Date.now()
-      };
+      const shouldWait = payload.wait === true || url.searchParams.get('wait') === 'true';
+      const timeoutMs = typeof payload.timeoutMs === 'number' ? payload.timeoutMs : 15000;
+      const { cmd, report } = await dispatchCommand(payload.action, payload.args || {}, shouldWait, timeoutMs);
 
-      if (waitingPollers.length > 0) {
-        const poller = waitingPollers.shift();
-        poller?.(cmd);
-      } else {
-        commandQueue.push(cmd);
+      if (shouldWait) {
+        return sendJson(res, report?.status === 'SUCCESS' ? 200 : 500, {
+          success: report?.status === 'SUCCESS',
+          commandId: cmd.id,
+          report: report || null
+        });
       }
 
       return sendJson(res, 201, {
+        success: true,
+        enqueued: cmd,
+        pendingQueueLength: commandQueue.length
+      });
+    }
+
+    // 3b. Specialized Scene Graph RPC Endpoints
+    if (req.method === 'POST' && url.pathname === '/api/scene-graph/query') {
+      const payload = await parseJsonBody(req);
+      const { report } = await dispatchCommand('GET_SCENE_GRAPH', payload, true, 20000);
+      return sendJson(res, report?.status === 'SUCCESS' ? 200 : 500, {
+        success: report?.status === 'SUCCESS',
+        result: report?.details || {},
+        error: report?.error || null,
+        telemetry: report?.telemetry || {}
+      });
+    }
+
+    if (req.method === 'POST' && url.pathname === '/api/scene-graph/inspect') {
+      const payload = await parseJsonBody(req);
+      const { report } = await dispatchCommand('INSPECT_OBJECT', payload, true, 10000);
+      return sendJson(res, report?.status === 'SUCCESS' ? 200 : 500, {
+        success: report?.status === 'SUCCESS',
+        result: report?.details || {},
+        error: report?.error || null
+      });
+    }
+
+    if (req.method === 'POST' && url.pathname === '/api/scene-graph/modify') {
+      const payload = await parseJsonBody(req);
+      const { report } = await dispatchCommand('MODIFY_OBJECT', payload, true, 12000);
+      return sendJson(res, report?.status === 'SUCCESS' ? 200 : 500, {
+        success: report?.status === 'SUCCESS',
+        result: report?.details || {},
+        error: report?.error || null
+      });
+    }
+
+    if (req.method === 'POST' && url.pathname === '/api/scene-graph/delete') {
+      const payload = await parseJsonBody(req);
+      const { report } = await dispatchCommand('DELETE_OBJECT', payload, true, 10000);
+      return sendJson(res, report?.status === 'SUCCESS' ? 200 : 500, {
+        success: report?.status === 'SUCCESS',
+        result: report?.details || {},
+        error: report?.error || null
+      });
+    }
+
+    if (req.method === 'POST' && url.pathname === '/api/scene-graph/clear-zone') {
+      const payload = await parseJsonBody(req);
+      const { report } = await dispatchCommand('CLEAR_ZONE', payload, true, 15000);
+      return sendJson(res, report?.status === 'SUCCESS' ? 200 : 500, {
+        success: report?.status === 'SUCCESS',
+        result: report?.details || {},
+        error: report?.error || null
+      });
+    }
+
+    // 3c. Batch Command Dispatch (BATCH_SPAWN)
+    if (req.method === 'POST' && url.pathname === '/api/command/batch') {
+      const payload = await parseJsonBody(req);
+      const shouldWait = payload.wait !== false;
+      const { cmd, report } = await dispatchCommand('BATCH_SPAWN', payload, shouldWait, 30000);
+
+      if (shouldWait) {
+        return sendJson(res, report?.status === 'SUCCESS' ? 200 : 500, {
+          success: report?.status === 'SUCCESS',
+          commandId: cmd.id,
+          result: report?.details || {},
+          error: report?.error || null
+        });
+      }
+
+      return sendJson(res, 202, {
         success: true,
         enqueued: cmd,
         pendingQueueLength: commandQueue.length
@@ -194,6 +314,12 @@ const server = http.createServer(async (req, res) => {
         telemetry: report.telemetry || {},
         timestamp: Date.now()
       };
+
+      // Fulfill any waiting synchronous promises
+      if (entry.commandId && reportWaiters.has(entry.commandId)) {
+        const waiter = reportWaiters.get(entry.commandId);
+        waiter?.(entry);
+      }
 
       executionHistory.unshift(entry);
       if (executionHistory.length > 100) executionHistory.pop();
