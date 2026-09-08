@@ -130,12 +130,10 @@ local function updateStatusUI()
 	)
 
 	if not isEnabled then
-		connectionStatus = "PAUSED"
 		statusIndicatorLabel.Text = "🟡 PAUSED (Click to Activate)"
 		statusIndicatorLabel.BackgroundColor3 = Color3.fromRGB(80, 70, 20)
 		statusIndicatorLabel.TextColor3 = Color3.fromRGB(255, 220, 90)
 	elseif isBusy then
-		connectionStatus = "BUSY"
 		statusIndicatorLabel.Text = "🟣 BUSY (Executing Actuator)"
 		statusIndicatorLabel.BackgroundColor3 = Color3.fromRGB(60, 25, 80)
 		statusIndicatorLabel.TextColor3 = Color3.fromRGB(220, 150, 255)
@@ -980,43 +978,57 @@ end
 -- Handler: Set Lighting
 local function handleSetLighting(args: { [string]: any }): { [string]: any }
 	local preset = args.preset or "GoldenHour"
-	Lighting:ClearAllChildren()
+	pcall(function()
+		for _, child in ipairs(Lighting:GetChildren()) do
+			if child:IsA("PostProcessEffect") or child:IsA("Atmosphere") or child:IsA("Sky") then
+				child:Destroy()
+			end
+		end
+	end)
+
 	pcall(function()
 		(Lighting :: any).Technology = Enum.Technology.Future
 	end)
-	Lighting.GlobalShadows = true
 
-	if preset == "GoldenHour" then
-		Lighting.ClockTime = 17.2
-		Lighting.Brightness = 2.4
-		Lighting.OutdoorAmbient = Color3.fromRGB(150, 135, 120)
-		Lighting.Ambient = Color3.fromRGB(110, 95, 80)
-	elseif preset == "Midnight" or preset == "MagicNight" then
-		Lighting.ClockTime = args.clockTime or 20.8 -- Noche mágica estrellada
-		Lighting.Brightness = args.brightness or 2.2 -- Noche iluminada y clara, NO oscura
-		Lighting.OutdoorAmbient = Color3.fromRGB(85, 100, 135)
-		Lighting.Ambient = Color3.fromRGB(70, 80, 110)
-	else
-		Lighting.ClockTime = 14.0
-		Lighting.Brightness = 2.0
-		Lighting.OutdoorAmbient = Color3.fromRGB(130, 135, 140)
-		Lighting.Ambient = Color3.fromRGB(100, 100, 100)
-	end
+	pcall(function()
+		Lighting.GlobalShadows = true
+	end)
 
-	local atmosphere = Instance.new("Atmosphere")
-	atmosphere.Density = 0.25
-	atmosphere.Offset = 0.15
-	atmosphere.Color = Color3.fromRGB(199, 210, 220)
-	atmosphere.Decay = Color3.fromRGB(106, 120, 140)
-	atmosphere.Parent = Lighting
+	pcall(function()
+		if preset == "GoldenHour" then
+			Lighting.ClockTime = 17.2
+			Lighting.Brightness = 2.4
+			Lighting.OutdoorAmbient = Color3.fromRGB(150, 135, 120)
+			Lighting.Ambient = Color3.fromRGB(110, 95, 80)
+		elseif preset == "Midnight" or preset == "MagicNight" then
+			Lighting.ClockTime = args.clockTime or 20.8
+			Lighting.Brightness = args.brightness or 2.2
+			Lighting.OutdoorAmbient = Color3.fromRGB(85, 100, 135)
+			Lighting.Ambient = Color3.fromRGB(70, 80, 110)
+		else
+			Lighting.ClockTime = 14.0
+			Lighting.Brightness = 2.0
+			Lighting.OutdoorAmbient = Color3.fromRGB(130, 135, 140)
+			Lighting.Ambient = Color3.fromRGB(100, 100, 100)
+		end
+	end)
 
-	local bloom = Instance.new("BloomEffect")
-	bloom.Intensity = 0.4
-	bloom.Size = 20
-	bloom.Threshold = 1.8
-	bloom.Parent = Lighting
+	pcall(function()
+		local atmosphere = Instance.new("Atmosphere")
+		atmosphere.Density = 0.25
+		atmosphere.Offset = 0.15
+		atmosphere.Color = Color3.fromRGB(199, 210, 220)
+		atmosphere.Decay = Color3.fromRGB(106, 120, 140)
+		atmosphere.Parent = Lighting
 
-	return { preset = preset, technology = "Future", clockTime = Lighting.ClockTime }
+		local bloom = Instance.new("BloomEffect")
+		bloom.Intensity = 0.4
+		bloom.Size = 20
+		bloom.Threshold = 1.8
+		bloom.Parent = Lighting
+	end)
+
+	return { preset = preset, clockTime = Lighting.ClockTime }
 end
 
 -- Handler: Focus Camera
